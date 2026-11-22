@@ -157,9 +157,10 @@ pause:
 
 The signed pause writers, like `operators roster sign`, replace the file only
 while it is the one they read, by swapping two names in one step, and refuse
-where the file system cannot. The pause directory's lock keeps other writers
-out: a writer that skips it can see its file swapped back, and a plane
-reading in that instant reads the refused one.
+where the file system cannot. Writers of this program wait for each other on
+the pause directory's lock and on a lock of the file. Another program takes
+neither: its file can be swapped back, and a plane reading in that instant
+reads the refused one.
 
 ### 6. Renew and revoke
 

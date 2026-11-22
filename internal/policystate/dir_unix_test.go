@@ -273,6 +273,9 @@ func TestResetJudgesWhatTheDirectoryHolds(t *testing.T) {
 // its mode; Init is refused and removes it, so the next Init, under an
 // ordinary umask, makes it 0700.
 func TestAnInitUnderAUmaskTakingTheOwnersReadBitLeavesNoDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("the superuser opens a directory whatever its mode")
+	}
 	for _, mask := range []int{0o400, 0o700} {
 		dir := filepath.Join(t.TempDir(), "floors")
 		err := func() error {

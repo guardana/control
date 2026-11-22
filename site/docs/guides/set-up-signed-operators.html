@@ -276,9 +276,10 @@ guardana-control pause add --action tool --provider orders --name refund \
 </code></pre>
 <p>The signed pause writers, like <code>operators roster sign</code>, replace the file only
 while it is the one they read, by swapping two names in one step, and refuse
-where the file system cannot. The pause directory's lock keeps other writers
-out: a writer that skips it can see its file swapped back, and a plane
-reading in that instant reads the refused one.</p>
+where the file system cannot. Writers of this program wait for each other on
+the pause directory's lock and on a lock of the file. Another program takes
+neither: its file can be swapped back, and a plane reading in that instant
+reads the refused one.</p>
 <h3 id="6-renew-and-revoke">6. Renew and revoke</h3>
 <p>Sign the roster again before <code>expires_at</code>, each time with a higher <code>serial</code>,
 and install it over the old one. The plane reads the roster file again each

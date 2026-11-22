@@ -115,14 +115,14 @@ func judge(ctx context.Context, o Options) (judged, error) {
 	return j, nil
 }
 
-// unexpiredAt is the reading the install's raise is judged at, taken once
+// unexpiredAt is the reading a raise to st for snap is judged at, taken once
 // the store holds its lock: a statement whose budget ran out while the raise
 // waited on that lock raises nothing.
-func (j judged) unexpiredAt(o Options) policy.Reading {
+func unexpiredAt(st policy.Statement, snap *policy.Snapshot, o Options) policy.Reading {
 	return func() (time.Time, error) {
 		now := o.Wall()
-		if expired(*j.st, j.disk.snap, o.MaxStale, now) {
-			return now, expiry(*j.st, j.disk.snap, o.MaxStale)
+		if expired(st, snap, o.MaxStale, now) {
+			return now, expiry(st, snap, o.MaxStale)
 		}
 		return now, nil
 	}
@@ -156,7 +156,7 @@ func Start(ctx context.Context, o Options) (StartResult, error) {
 	res := StartResult{Action: j.verdict.Action, Unconfirmed: j.verdict.Cause, Floor: j.floor}
 	switch j.verdict.Action {
 	case policy.StartConfirmed:
-		err = o.Holder.InstallConfirmedAt(ctx, j.disk.msg, o.BundleKeys, *j.st, j.unexpiredAt(o))
+		err = o.Holder.InstallConfirmedAt(ctx, j.disk.msg, o.BundleKeys, *j.st, unexpiredAt(*j.st, j.disk.snap, o))
 	case policy.StartUnconfirmed:
 		err = o.Holder.InstallUnconfirmed(ctx, j.disk.msg, o.BundleKeys)
 	default:

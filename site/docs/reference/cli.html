@@ -196,14 +196,14 @@ document that does not parse, refused before the key is opened; a key file
 another account owns, one on which the group or others have any permission,
 one that is not a regular file, and one that is not exactly one unencrypted
 Ed25519 key in PKCS#8, with an OpenSSH, encrypted, EC, RSA or public key each
-named; an <code>--out</code> that is the key or the document by any spelling or link, and
-one that exists and is not a policy bundle, so no other file, another key
-included, is replaced; and a bundle the loader would refuse. <code>--out</code> is
-cleaned as text before anything reads it, so <code>a/link/../x</code> names <code>a/x</code>
+named; an <code>--out</code> that is the key or the document by any spelling or link, or
+exists and is not a policy bundle; and a bundle the loader would refuse.
+<code>--out</code> is cleaned as text first, so <code>a/link/../x</code> names <code>a/x</code>
 whatever <code>a/link</code> points at. <code>sign</code>, <code>renew</code> and <code>operators roster sign</code>
 replace only the <code>--out</code> they judged, by a swap, refusing an existing one on
 file systems without it; a failed sync after it is reported, the file
-perhaps in place.</p>
+perhaps in place. The file's lock holds off this program's writers, not
+others.</p>
 <p>The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits
 (<a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>).</p>

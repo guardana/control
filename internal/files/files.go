@@ -56,7 +56,16 @@ const (
 	// ErrNotOneName is a name that is not one entry of the directory: empty,
 	// ".", "..", or holding a separator.
 	ErrNotOneName Error = "files: not one name in the directory"
+	// ErrNothingWritten marks a refusal that left the directory as it found
+	// it, so a caller may judge the name again and retry.
+	ErrNothingWritten Error = "files: nothing was written"
+	// ErrNotKept is a ReplaceJudgedIn whose new file took the name and was
+	// then replaced by a writer that takes no lock of this package.
+	ErrNotKept Error = "files: the new file no longer holds the name"
 )
+
+// errLink is an open of the judged name that found a symbolic link there.
+const errLink Error = "files: a symbolic link stands at the name"
 
 // tmpPrefix starts every temporary name this package makes. The random rest,
 // rand.Text's 26 characters of the standard base32 alphabet, keeps two
@@ -100,7 +109,7 @@ func CreateNoReplaceIn(root *os.Root, name string, body []byte, perm fs.FileMode
 	}
 	if err := root.Link(tmp, name); err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return errors.Join(fmt.Errorf("%w: %q", ErrExists, name), root.Remove(tmp))
+			return unwritten(fmt.Errorf("%w: %q", ErrExists, name), root.Remove(tmp))
 		}
 		return errors.Join(err, root.Remove(tmp))
 	}
@@ -146,17 +155,27 @@ func ReplaceJudged(dir, name string, body []byte, perm fs.FileMode, judged fs.Fi
 }
 
 // ReplaceJudgedIn puts body under name in the directory root holds, with mode
-// perm, only over the entry judged describes, as an Lstat of name found it,
-// and with a nil judged only where nothing stands at name. Another entry at
-// the name, a file, a link or a directory, is refused with ErrNotJudged. It
-// is judged first, and again after the new file and the entry at name are
-// exchanged in one step: an entry that took the name in between is
-// exchanged back, so the name ends holding it, but a reader of the name in
-// that instant reads the new file. Only a lock every writer takes keeps
-// another writer out of that instant. An exchange back that fails is
+// perm, only over the regular file judged describes, as an Lstat of name
+// found it, and with a nil judged only where nothing stands at name, by a
+// create that never replaces. Writers of this package serialise on an
+// exclusive flock of the judged file itself, opened without following a
+// link and held until the exchange is settled; the directory is never
+// locked, since callers hold their own lock on it. Once the lock is held,
+// the file and the name are judged again, so a writer that waited while
+// another replaced the file is refused with ErrNotJudged and
+// ErrNothingWritten. Another entry at the name, a file, a link or a
+// directory, is refused the same way, and a judged entry that is not a
+// regular file is refused with ErrNotRegular. It answers nil only while the
+// name holds its new file once the exchange is settled.
+//
+// The lock binds the writers of this program only. Another program that
+// writes the name takes no such lock; what it puts there between the second
+// judgement and the exchange is exchanged back, but a reader of the name in
+// that instant reads the new file. An exchange back that fails is
 // ErrNotPutBack, naming where the entry is; one whose name changed again in
-// between leaves what stood there under the temporary name the error names.
-// A platform or file system with no exchange refuses with ErrNoExchange.
+// between leaves what stood there under the temporary name the error names;
+// a new file replaced after it took the name is ErrNotKept. A platform or
+// file system with no exchange refuses with ErrNoExchange.
 func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
 	if !oneName(name) {
 		return fmt.Errorf("%w: %q", ErrNotOneName, name)
@@ -167,6 +186,32 @@ func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, 
 			return fmt.Errorf("%w: %q was absent when it was judged: %w", ErrNotJudged, name, err)
 		}
 		return err
+	}
+	if !judged.Mode().IsRegular() {
+		return fmt.Errorf("%w: the entry judged at %q is %s, which no lock holds", ErrNotRegular, name, describe(judged.Mode()))
+	}
+	held, err := openJudged(root, name)
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, errLink) {
+		return changed(name)
+	}
+	if err != nil {
+		return err
+	}
+	beforeJudgedLocked()
+	if err := lockFile(held); err != nil {
+		return errors.Join(fmt.Errorf("files: locking %q: %w", name, err), held.Close())
+	}
+	return errors.Join(replaceHeld(root, held, name, body, perm, judged), held.Close())
+}
+
+// replaceHeld is ReplaceJudgedIn once held, the file at name, is locked.
+func replaceHeld(root *os.Root, held *os.File, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+	info, err := held.Stat()
+	if err != nil {
+		return err
+	}
+	if !SameEntry(info, judged) {
+		return changed(name)
 	}
 	if err := stillJudged(root, name, judged); err != nil {
 		return err
@@ -181,30 +226,57 @@ func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, 
 	}
 	if err := exchangeIn(root, tmp, name); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			err = fmt.Errorf("%w: %q is gone since it was judged", ErrNotJudged, name)
+			return unwritten(fmt.Errorf("%w: %q is gone since it was judged", ErrNotJudged, name), root.Remove(tmp))
 		}
 		return errors.Join(err, root.Remove(tmp))
 	}
 	betweenExchanges(root, tmp)
 	out, err := root.Lstat(tmp)
 	if err == nil && sameMoved(out, judged) {
-		return errors.Join(root.Remove(tmp), syncRoot(root))
+		return settle(root, name, tmp, written)
 	}
 	return putBack(root, name, tmp, written)
 }
 
-// stillJudged refuses with ErrNotJudged unless the entry at name is the one
-// judged describes.
+// settle removes the judged file the exchange moved to tmp and answers nil
+// only while the name holds the new file, written.
+func settle(root *os.Root, name, tmp string, written fs.FileInfo) error {
+	if err := errors.Join(root.Remove(tmp), syncRoot(root)); err != nil {
+		return err
+	}
+	if now, err := root.Lstat(name); err != nil || !os.SameFile(now, written) {
+		return errors.Join(fmt.Errorf("%w: %q was replaced once the new file took it", ErrNotKept, name), err)
+	}
+	return nil
+}
+
+// stillJudged refuses with ErrNotJudged and ErrNothingWritten unless the
+// entry at name is the one judged describes.
 func stillJudged(root *os.Root, name string, judged fs.FileInfo) error {
 	switch now, err := root.Lstat(name); {
 	case errors.Is(err, fs.ErrNotExist):
-		return fmt.Errorf("%w: %q is gone since it was judged", ErrNotJudged, name)
+		return changed(name)
 	case err != nil:
 		return err
 	case !SameEntry(now, judged):
-		return fmt.Errorf("%w: %q changed since it was judged, and nothing was written", ErrNotJudged, name)
+		return changed(name)
 	}
 	return nil
+}
+
+// changed is the refusal of a name that no longer holds the judged entry,
+// before anything was written.
+func changed(name string) error {
+	return fmt.Errorf("%w: %q changed or is gone since it was judged: %w", ErrNotJudged, name, ErrNothingWritten)
+}
+
+// unwritten is refusal marked ErrNothingWritten when removed, the removal
+// of the temporary file it wrote, succeeded, and joined with it otherwise.
+func unwritten(refusal, removed error) error {
+	if removed != nil {
+		return errors.Join(refusal, removed)
+	}
+	return fmt.Errorf("%w: %w", refusal, ErrNothingWritten)
 }
 
 // putBack exchanges what came out of name, now at tmp, back under name and
@@ -224,6 +296,10 @@ func putBack(root *os.Root, name, tmp string, written fs.FileInfo) error {
 // before what came out is compared with the entry judged.
 var betweenExchanges = func(*os.Root, string) {}
 
+// beforeJudgedLocked runs, in a test, once the judged file is open and
+// before its lock is taken.
+var beforeJudgedLocked = func() {}
+
 // oneName reports whether name is one entry of a directory, which the raw
 // exchange below takes as given, past the confinement os.Root keeps.
 func oneName(name string) bool {
@@ -232,8 +308,10 @@ func oneName(name string) bool {
 
 // SameEntry reports whether a and b describe one file as it was: the same
 // device and inode, type and mode, size, modification time and, where the
-// platform keeps it, change time. A file whose inode number was reused, or
-// that was written since, is another.
+// platform keeps it, change time. Another entry at the name, and a file of a
+// reused inode number, is another. A rewrite in place to the same size within
+// one tick of the file system's clock is not seen; the writers of this
+// package never write in place.
 func SameEntry(a, b fs.FileInfo) bool {
 	ac, aok := changeTime(a)
 	bc, bok := changeTime(b)
@@ -471,6 +549,8 @@ func describe(m fs.FileMode) string {
 	switch {
 	case m.IsDir():
 		return "a directory"
+	case m&fs.ModeSymlink != 0:
+		return "a symbolic link"
 	case m&fs.ModeNamedPipe != 0:
 		return "a named pipe"
 	case m&fs.ModeSocket != 0:

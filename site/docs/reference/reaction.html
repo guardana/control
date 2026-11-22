@@ -154,8 +154,8 @@ guardana-control stops lift --route &lt;file&gt; --public-key &lt;file&gt; --key
 <p>The route says which findings may stop a run: its tenant, and rules, each a
 procedure by id, version and digest and a supervise rule, with an optional
 lifetime for the stops it allows. Without one a stop lasts as long as its run.
-<code>route sign</code> signs it and writes it mode <code>0644</code>, replacing only the route it
-judged, and only by a swap. It refuses any rule but the six whose finding
+<code>route sign</code> signs it, mode <code>0644</code>, replacing only the route it judged by a
+swap, locked against this program's writers only. It refuses any rule but the six whose finding
 may stop a run, each at its version: <code>REPEATED_DENIAL</code> at <code>2</code>, and
 <code>STEP_OUTSIDE_PROCEDURE</code>, <code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>,
 <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code> at <code>1</code>.
@@ -194,7 +194,7 @@ and lifts counted and the list's use of its bounds.</p>
 <h2 id="what-react-writes">What react writes</h2>
 <p><code>react</code> verifies the route before reading a finding, refuses a list whose
 header names another route, reads the findings log and looks each finding's run up in the runs directory,
-which it never writes. It holds no key and never lifts. For each finding the
+which it only reads. It holds no key and never lifts. For each finding the
 list does not name yet, it writes a <code>covered</code> line when the run has an active
 stop lasting at least as long as the new one, and a <code>stop</code> otherwise,
 as the list stands under its lock, if:</p>

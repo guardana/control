@@ -63,14 +63,14 @@ document that does not parse, refused before the key is opened; a key file
 another account owns, one on which the group or others have any permission,
 one that is not a regular file, and one that is not exactly one unencrypted
 Ed25519 key in PKCS#8, with an OpenSSH, encrypted, EC, RSA or public key each
-named; an `--out` that is the key or the document by any spelling or link, and
-one that exists and is not a policy bundle, so no other file, another key
-included, is replaced; and a bundle the loader would refuse. `--out` is
-cleaned as text before anything reads it, so `a/link/../x` names `a/x`
+named; an `--out` that is the key or the document by any spelling or link, or
+exists and is not a policy bundle; and a bundle the loader would refuse.
+`--out` is cleaned as text first, so `a/link/../x` names `a/x`
 whatever `a/link` points at. `sign`, `renew` and `operators roster sign`
 replace only the `--out` they judged, by a swap, refusing an existing one on
 file systems without it; a failed sync after it is reported, the file
-perhaps in place.
+perhaps in place. The file's lock holds off this program's writers, not
+others.
 
 The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits

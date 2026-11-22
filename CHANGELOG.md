@@ -280,24 +280,31 @@ verify one.
   retargeted between the path's binding and the read let the plane take a
   copy of a signed file from another directory.
 - The policy watcher's start judges a statement's expiry by the time read
-  after it read the floor and the files, and again once the floor's store
-  holds its lock to raise the floor. A statement that expired while another
-  process held the floor's lock was taken, and raised the floor.
+  after it read the floor and the files, and its start and its polls judge
+  it again once the floor's store holds its lock to raise the floor. A
+  statement that expired while another process held the floor's lock was
+  taken, and raised the floor.
 - `policy sign`, `route sign`, `operators roster sign`, `policy renew`,
   `supervise --view` and the signed pause writers replace their output only
   while it is still the file they judged: its inode, type, mode, size and
-  times, so a file written since or one reusing a freed inode number is
-  another. A file put there before the replace began is refused untouched.
-  One put there in the instant between that check and the swap comes out of
-  the swap and is put back, but a reader of the name in that instant reads
-  the refused file; only a lock every writer takes, as the pause
-  directory's does, keeps another writer out of that instant. A file renamed
-  over the output after the last check was replaced.
-- Two `policy renew` runs over one `--out` under different signer floor
-  directories keep the newer statement, in either order: a run that finds
-  `--out` replaced since it judged it judges it again, up to three times, and
-  writes over an older statement but not a newer one. The older statement
-  could be written over the newer.
+  times, so another file put there or one reusing a freed inode number is
+  another; a rewrite in place to the same size within one tick of the file
+  system's clock is not seen. Writers of this program wait for each other on
+  a lock of the judged file and judge it again once they hold it, so of any
+  number of them only one replaces it and the others are refused with
+  nothing written. Another program takes no such lock: a file it puts there
+  between that check and the swap comes out of the swap and is put back, but
+  a reader of the name in that instant reads the refused file. A write
+  succeeds only while the name holds its own file once the swap settled. A
+  file renamed over the output after the last check was replaced, and with
+  three writers a refused file could end at the name.
+- `policy renew` runs over one `--out` under different signer floor
+  directories keep the newest statement, in any order: a run whose write was
+  refused with nothing written judges `--out` again, up to three times, and
+  writes over an older statement but not a newer one; a write that failed
+  having written ends the run, naming any file it left. The older statement
+  could be written over the newer, and a run could exit 0 with an older
+  statement at `--out`.
 - The policy watcher counts an unchanged statement past its budget as
   expired and refuses it, judging the budget by the time read after the
   floor. A statement the floor still took was confirmed again although it

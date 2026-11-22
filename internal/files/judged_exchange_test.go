@@ -33,8 +33,8 @@ func TestAFileRenamedInDuringTheReplaceIsPutBack(t *testing.T) {
 		renamedIn(t, dir, tmp, "the other writer's")
 	})
 	err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged)
-	if !errors.Is(err, files.ErrNotJudged) || !strings.Contains(err.Error(), "until what stood there was put back") {
-		t.Errorf("a replace whose exchange took out another file = %v, want ErrNotJudged saying it was put back", err)
+	if !errors.Is(err, files.ErrNotJudged) || errors.Is(err, files.ErrNothingWritten) || !strings.Contains(err.Error(), "until what stood there was put back") {
+		t.Errorf("a replace whose exchange took out another file = %v, want ErrNotJudged saying it was put back, not ErrNothingWritten", err)
 	}
 	if got := readBody(t, out); got != "the other writer's" {
 		t.Errorf("the name holds %q, want the other writer's file back", got)
@@ -60,8 +60,8 @@ func TestWhatChangedAgainWhileItWasPutBackStaysUnderTheTemporaryName(t *testing.
 		renamedIn(t, dir, "out", "a third writer's")
 	})
 	err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged)
-	if !errors.Is(err, files.ErrNotJudged) || !strings.Contains(err.Error(), "changed again") || !strings.Contains(err.Error(), tmpName) {
-		t.Errorf("a name changed again before the exchange back = %v, want ErrNotJudged naming %s", err, tmpName)
+	if !errors.Is(err, files.ErrNotJudged) || errors.Is(err, files.ErrNothingWritten) || !strings.Contains(err.Error(), "changed again") || !strings.Contains(err.Error(), tmpName) {
+		t.Errorf("a name changed again before the exchange back = %v, want ErrNotJudged naming %s, not ErrNothingWritten", err, tmpName)
 	}
 	if got := readBody(t, out); got != "the other writer's" {
 		t.Errorf("the name holds %q, want the other writer's file", got)

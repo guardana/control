@@ -277,11 +277,12 @@ func WriteStatement(path string, env policy.StatementEnvelope) error {
 // WriteStatementOver is WriteStatement that replaces only the entry judged
 // describes, as a read of path found it, and with a nil judged writes only
 // where nothing stands at path: one put there since, a statement among
-// them, is refused with files.ErrNotJudged and left as it is.
+// them, is refused with files.ErrNotJudged and left as it is, and
+// files.ErrNothingWritten says when nothing was written.
 func WriteStatementOver(path string, env policy.StatementEnvelope, judged fs.FileInfo) error {
 	return writeStatement(path, env, func(held fs.FileInfo) (fs.FileInfo, error) {
 		if (held == nil) != (judged == nil) || held != nil && !files.SameEntry(held, judged) {
-			return nil, fmt.Errorf("%s: %w", filepath.Base(path), files.ErrNotJudged)
+			return nil, fmt.Errorf("%s: %w: %w", filepath.Base(path), files.ErrNotJudged, files.ErrNothingWritten)
 		}
 		return judged, nil
 	})

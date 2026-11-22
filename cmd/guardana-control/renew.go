@@ -169,34 +169,52 @@ func signedStatement(p renewPaths, issuedAt time.Time) (signed, error) {
 // writer, under another signer floor directory, replaced it in between.
 const outAttempts = 3
 
+// writeOut is the write of a statement over the entry at out a renew judged.
+var writeOut = policykey.WriteStatementOver
+
 // raiseAndWrite raises the signer floor to s and, still holding the floor
-// directory's lock, checks out for a newer statement and writes s there. A
-// statement another renew put at out after the check is judged in turn, so
-// an older one is replaced and a newer one kept. An error after the write
-// says the statement was written.
+// directory's lock, writes s at out as writeJudged does. An error after the
+// write says the statement was written.
 func raiseAndWrite(floor, out string, s signed, issuedAt time.Time) error {
 	written := false
 	err := raiseSignerFloor(floor, s.st, issuedAt, func() error {
 		afterRaise()
-		var err error
-		for range outAttempts {
-			var judged fs.FileInfo
-			if judged, err = checkNotNewer(out, s.st, s.freshPub); err != nil {
-				return err
-			}
-			beforeOutReplaced(out)
-			if err = policykey.WriteStatementOver(out, s.env, judged); !errors.Is(err, ondisk.ErrNotJudged) {
-				break
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err)
+		if err := writeJudged(out, s); err != nil {
+			return err
 		}
 		written = true
 		return nil
 	})
 	if err != nil && written {
 		return fmt.Errorf("%w; the statement was written to %s", err, out)
+	}
+	return err
+}
+
+// writeJudged checks out for a newer statement and writes s over what it
+// judged there. A statement another renew put at out in between is judged
+// in turn, so an older one is replaced and a newer one kept: a read or a
+// write refused with nothing written judges out again, up to outAttempts
+// times, and any other failure ends the renew with its error, which names a
+// file it left.
+func writeJudged(out string, s signed) error {
+	var err error
+	for range outAttempts {
+		var judged fs.FileInfo
+		if judged, err = checkNotNewer(out, s.st, s.freshPub); err != nil {
+			if errors.Is(err, ondisk.ErrNotJudged) {
+				continue
+			}
+			return err
+		}
+		beforeOutReplaced(out)
+		if err = writeOut(out, s.env, judged); err == nil {
+			return nil
+		}
+		err = fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err)
+		if !errors.Is(err, ondisk.ErrNothingWritten) {
+			return err
+		}
 	}
 	return err
 }

@@ -175,8 +175,8 @@ func (r *Refresher) replace(ctx context.Context, cur *policy.Snapshot, st policy
 
 // confirm confirms snap by st: a renewal of the current bundle when install
 // is nil, and otherwise the install of the bundle install holds. A statement
-// whose budget has run out when it would be published is refused before
-// the floor is raised.
+// whose budget has run out when it would be published, judged again once the
+// floor's store holds its lock, is refused before the floor is raised.
 func (r *Refresher) confirm(ctx context.Context, snap *policy.Snapshot, st policy.Statement, install *diskBundle) {
 	// The clock is judged again under its lock, held until the holder has
 	// published or refused, so a withdrawal cannot land between the two, and
@@ -198,10 +198,10 @@ func (r *Refresher) confirm(ctx context.Context, snap *policy.Snapshot, st polic
 	raise, cancel := context.WithTimeout(ctx, r.o.Interval)
 	defer cancel()
 	var err error
-	if install == nil {
-		err = r.o.Holder.Confirm(raise, st, now)
+	if at := unexpiredAt(st, snap, r.o); install == nil {
+		err = r.o.Holder.ConfirmAt(raise, st, at)
 	} else {
-		err = r.o.Holder.InstallConfirmed(raise, install.msg, r.o.BundleKeys, st, now)
+		err = r.o.Holder.InstallConfirmedAt(raise, install.msg, r.o.BundleKeys, st, at)
 	}
 	if err != nil {
 		r.refuse(causeOf(err), err)

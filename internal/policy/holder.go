@@ -182,6 +182,12 @@ func (h *Holder) InstallConfirmedAt(ctx context.Context, b *controlv1.PolicyBund
 // does with the current bundle, so st must name it. With no current snapshot
 // it is ErrNoBundle.
 func (h *Holder) Confirm(ctx context.Context, st Statement, now time.Time) error {
+	return h.ConfirmAt(ctx, st, At(now))
+}
+
+// ConfirmAt is Confirm judged at the reading now gives once the store holds
+// its lock, as InstallConfirmedAt is.
+func (h *Holder) ConfirmAt(ctx context.Context, st Statement, now Reading) error {
 	if h.store == nil {
 		return ErrNoFloorStore
 	}
@@ -191,7 +197,7 @@ func (h *Holder) Confirm(ctx context.Context, st Statement, now time.Time) error
 	if cur == nil {
 		return ErrNoBundle
 	}
-	return h.confirm(ctx, cur, st, At(now))
+	return h.confirm(ctx, cur, st, now)
 }
 
 // Unconfirm publishes the current snapshot again with no confirmation, so the

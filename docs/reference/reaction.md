@@ -49,8 +49,8 @@ Sources: `cmd/guardana-control/react.go`, `cmd/guardana-control/stops.go`, `inte
 The route says which findings may stop a run: its tenant, and rules, each a
 procedure by id, version and digest and a supervise rule, with an optional
 lifetime for the stops it allows. Without one a stop lasts as long as its run.
-`route sign` signs it and writes it mode `0644`, replacing only the route it
-judged, and only by a swap. It refuses any rule but the six whose finding
+`route sign` signs it, mode `0644`, replacing only the route it judged by a
+swap, locked against this program's writers only. It refuses any rule but the six whose finding
 may stop a run, each at its version: `REPEATED_DENIAL` at `2`, and
 `STEP_OUTSIDE_PROCEDURE`, `DEADLINE_EXCEEDED`, `RESOURCE_OUTSIDE_RUN`,
 `DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE` at `1`.
@@ -95,7 +95,7 @@ and lifts counted and the list's use of its bounds.
 
 `react` verifies the route before reading a finding, refuses a list whose
 header names another route, reads the findings log and looks each finding's run up in the runs directory,
-which it never writes. It holds no key and never lifts. For each finding the
+which it only reads. It holds no key and never lifts. For each finding the
 list does not name yet, it writes a `covered` line when the run has an active
 stop lasting at least as long as the new one, and a `stop` otherwise,
 as the list stands under its lock, if:

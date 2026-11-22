@@ -94,30 +94,6 @@ func TestReplaceJudgedRefusesAFileGoneOrComeSinceTheJudgement(t *testing.T) {
 	}
 }
 
-// TestReplaceJudgedReplacesALinkJudgedAsALink: the entry judged is the link
-// at the name, which is replaced, and the file it named keeps its bytes.
-func TestReplaceJudgedReplacesALinkJudgedAsALink(t *testing.T) {
-	dir := t.TempDir()
-	outside := filepath.Join(t.TempDir(), "outside")
-	writeFile(t, outside, []byte("not yours"), 0o600)
-	out := filepath.Join(dir, "out")
-	if err := os.Symlink(outside, out); err != nil {
-		t.Fatal(err)
-	}
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, lstat(t, outside)); !errors.Is(err, files.ErrNotJudged) {
-		t.Errorf("a link judged by the file it names = %v, want ErrNotJudged", err)
-	}
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, lstat(t, out)); err != nil {
-		t.Fatalf("the link judged as a link: %v", err)
-	}
-	if got := readBody(t, outside); got != "not yours" {
-		t.Errorf("the link's target now holds %q", got)
-	}
-	if !lstat(t, out).Mode().IsRegular() {
-		t.Error("the name is not a regular file after the replace")
-	}
-}
-
 // TestReplaceJudgedRefusesANameThatIsNotOneEntry: a name that reaches out of
 // the directory, or names no entry of it, is refused and nothing outside is
 // written; the control, one plain name, is replaced.
@@ -148,10 +124,10 @@ func TestReplaceJudgedRefusesANameThatIsNotOneEntry(t *testing.T) {
 	}
 }
 
-// TestReplaceJudgedPutsBackADirectoryAtTheName: a directory that took the
-// judged file's name is put back whole and the replace refused; only the new
-// file is gone.
-func TestReplaceJudgedPutsBackADirectoryAtTheName(t *testing.T) {
+// TestReplaceJudgedKeepsADirectoryAtTheName: a directory that took the
+// judged file's name, whatever inode number it got, is kept whole and the
+// replace refused with nothing written.
+func TestReplaceJudgedKeepsADirectoryAtTheName(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	writeFile(t, out, []byte("judged"), 0o600)
@@ -163,8 +139,8 @@ func TestReplaceJudgedPutsBackADirectoryAtTheName(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(out, "inside"), []byte("kept"), 0o600)
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
-		t.Errorf("a replace over a directory at the name = %v, want ErrNotJudged", err)
+	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) || !errors.Is(err, files.ErrNothingWritten) {
+		t.Errorf("a replace over a directory at the name = %v, want ErrNotJudged with nothing written", err)
 	}
 	if info := lstat(t, out); !info.IsDir() {
 		t.Errorf("the name holds %v after the refusal, want the directory", info.Mode())
@@ -252,8 +228,8 @@ func TestARefusedReplaceOfAnEarlierChangeIsNeverRead(t *testing.T) {
 		}
 	}()
 	for range 500 {
-		if err := files.ReplaceJudged(dir, "out", []byte("refused"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
-			t.Errorf("a replace over a file renamed in before it began = %v, want ErrNotJudged", err)
+		if err := files.ReplaceJudged(dir, "out", []byte("refused"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) || !errors.Is(err, files.ErrNothingWritten) {
+			t.Errorf("a replace over a file renamed in before it began = %v, want ErrNotJudged with nothing written", err)
 			break
 		}
 	}

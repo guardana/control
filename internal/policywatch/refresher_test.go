@@ -607,3 +607,44 @@ func TestAnUnchangedStatementExpiredWhileTheFloorWasReadIsCountedExpired(t *test
 		t.Errorf("a poll whose floor read waited past the budget counted %d expiries, want 1", got)
 	}
 }
+
+// TestAPollWhoseRaiseWaitsPastExpiryConfirmsNothing: a poll finds a
+// statement a second before its budget runs out, for a new bundle and for a
+// renewal of the current one, and the floor's raise waits two seconds on the
+// lock. The poll counts it expired, and the holder and the floor are as they
+// were. The control's raise waits no time and confirms.
+func TestAPollWhoseRaiseWaitsPastExpiryConfirmsNothing(t *testing.T) {
+	for _, install := range []bool{true, false} {
+		for _, wait := range []time.Duration{0, 2 * time.Second} {
+			r := newRig(t, emptyFloor(t))
+			sr := &slowRaise{memFloor: r.store, clock: r.clock}
+			h, err := policy.NewFloorHolder(planeID, sr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.holder, r.opts.Holder = h, h
+			digest := r.startConfirmed()
+			r.clock.advance(600 * time.Second)
+			sr.wait = wait
+			issued := r.clock.Wall().Add(-599 * time.Second)
+			if install {
+				r.writeStatement(3, r.writeBundle(3, "v3", 600), issued)
+			} else {
+				r.writeStatement(2, digest, issued)
+			}
+			r.poll()
+			stats := r.refresher.Stats()
+			if wait == 0 {
+				if stats.Confirmations != 1 {
+					t.Errorf("install %v, the control, a raise that waits no time: %d confirmations, want 1", install, stats.Confirmations)
+				}
+				continue
+			}
+			if got := stats.Refused[policywatch.CauseStatementExpired]; got != 1 || stats.Confirmations != 0 {
+				t.Errorf("install %v, a raise that waited past the budget: %d expiries and %d confirmations, want 1 and 0", install, got, stats.Confirmations)
+			}
+			r.expectSnapshot(2, digest, t0)
+			r.expectFloor(2, digest, t0)
+		}
+	}
+}

@@ -23,3 +23,11 @@ func BetweenExchanges(t interface{ Cleanup(func()) }, f func(root *os.Root, tmp 
 	betweenExchanges = f
 	t.Cleanup(func() { betweenExchanges = saved })
 }
+
+// BeforeJudgedLocked sets what runs once ReplaceJudgedIn opened the judged
+// file and before it waits for that file's lock, for the test's length.
+func BeforeJudgedLocked(t interface{ Cleanup(func()) }, f func()) {
+	saved := beforeJudgedLocked
+	beforeJudgedLocked = f
+	t.Cleanup(func() { beforeJudgedLocked = saved })
+}
