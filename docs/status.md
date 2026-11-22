@@ -1030,7 +1030,10 @@ and it reads what the test binary prints, so a test that prints its own pass and
 exits 0 hides the tests after it, which only review catches; before it, both
 targets refuse a module whose `./...` leaves out a package holding Go files, as
 a `go.mod` `ignore` directive can, or one the module's code imports, as one
-under `testdata` or `_` is), `scripts/`,
+under `testdata` or `_` is, and a module that builds code from a vendor
+directory or a local `replace` outside the repository's modules; a package only
+a test, a `//go:build ignore` program or another platform's file imports is not
+covered), `scripts/`,
 `internal/docscheck/`, `internal/core/layering_test.go`. The dependency rule is
 an allowlist over six trees, all examined, and every package of this module they
 reach is held to the same refusals by name; no non-test file under `adapters/`
@@ -1109,7 +1112,8 @@ refuses while main has an open CodeQL alert of severity high or critical
 (`scripts/check-gate-runs.sh`); it checks again right before it tags the image
 and right before it publishes, names the tag in the request that publishes the
 draft, and reads the release back under that tag. The job that uploads the
-client to the package index checks again right before the upload.
+client to the package index first checks the released commit's own CI and
+Security push runs on main, so a re-run still works once main has moved on.
 
 Also an OCI image of the gateway, `ghcr.io/guardana/control-gateway`, for
 linux/amd64 and linux/arm64 on a distroless nonroot base, signed and attested by

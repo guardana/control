@@ -237,17 +237,78 @@ func TestTheImageIsTaggedOnlyWhileItsCommitIsMainsHead(t *testing.T) {
 	}
 }
 
-// TestTheClientIsUploadedOnlyWhileItsCommitIsMainsHead: an upload to the
-// package index is not taken back, and the index job can wait for its
-// approval long after the release job's checks, so the upload step checks
-// the gate before it uploads anything; with the gate passing it uploads.
-func TestTheClientIsUploadedOnlyWhileItsCommitIsMainsHead(t *testing.T) {
-	r := runReleaseStep(t, "index", "Upload", "STUB_GATE=refuse")
-	if r.err == nil || strings.Contains(r.calls, "upload ") {
-		t.Errorf("the upload step with main moved on = %v, and it uploaded:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
+// TestTheClientIsUploadedOnlyFromAGatedCommit: an upload to the package index
+// is not taken back, and the index job can wait for its approval long after
+// the release job's checks, so a step of its own checks the released commit's
+// gate runs right before the upload. It judges the commit, not main's head, so
+// a re-run of the upload still works once main has moved.
+func TestTheClientIsUploadedOnlyFromAGatedCommit(t *testing.T) {
+	r := runReleaseStep(t, "index", "Check the gate again", "STUB_GATE=refuse")
+	if r.err == nil {
+		t.Errorf("the gate step with the commit's runs refused = <nil>:\n%s\ncalls:\n%s", r.out, r.calls)
 	}
-	r = runReleaseStep(t, "index", "Upload")
-	if r.err != nil || !strings.HasPrefix(r.calls, fmt.Sprintf("gate %s\nupload ", strings.Repeat("a", 40))) {
-		t.Errorf("the upload step with the gate passing = %v, want the gate checked and then the upload:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
+	r = runReleaseStep(t, "index", "Check the gate again")
+	if r.err != nil || r.calls != fmt.Sprintf("gate --released %s\n", strings.Repeat("a", 40)) {
+		t.Errorf("the gate step = %v, want one check of the released commit:\n%s\ncalls:\n%s", r.err, r.out, r.calls)
+	}
+}
+
+// indexJob returns the index job's steps and whether it grants actions: read.
+func indexJob(t *testing.T) (steps []*yamlNode, readScope bool) {
+	t.Helper()
+	root, err := parseBlockYAML(readLines(t, repoFS(t), releaseWorkflowPath))
+	if err != nil {
+		t.Fatalf("%s: %v", releaseWorkflowPath, err)
+	}
+	for _, jobs := range root.children("jobs") {
+		for _, job := range jobs.children("index") {
+			for _, list := range job.children("steps") {
+				steps = append(steps, list.kids...)
+			}
+			for _, p := range job.children("permissions") {
+				readScope = readScope || slices.ContainsFunc(p.children("actions"), func(n *yamlNode) bool { return n.value == "read" })
+			}
+		}
+	}
+	return steps, readScope
+}
+
+// stepTokens names the env entries of a step that carry a token or a secret.
+func stepTokens(s *yamlNode) (names []string) {
+	for _, env := range s.children("env") {
+		for _, v := range env.kids {
+			if strings.Contains(v.value, "token") || strings.Contains(v.value, "secrets.") {
+				names = append(names, v.key)
+			}
+		}
+	}
+	return names
+}
+
+// TestTheIndexUploadFollowsItsOwnGateCheck: the gate check is the step right
+// before the upload, neither can be skipped past a refusal, the job can read
+// the runs the check judges, and the check holds the token while the upload,
+// whose tools would inherit it, holds none.
+func TestTheIndexUploadFollowsItsOwnGateCheck(t *testing.T) {
+	steps, readScope := indexJob(t)
+	if !readScope {
+		t.Errorf("%s: the index job does not grant actions: read, which the gate check reads the runs with", releaseWorkflowPath)
+	}
+	at := slices.IndexFunc(steps, func(s *yamlNode) bool { return len(stepScripts(s, "Upload")) == 1 })
+	if at < 1 || len(stepScripts(steps[at-1], "Check the gate again")) != 1 {
+		t.Fatalf("%s: the index job's Upload does not follow a step named Check the gate again", releaseWorkflowPath)
+	}
+	for _, s := range steps[at-1 : at+1] {
+		for _, key := range []string{"if", "continue-on-error"} {
+			for _, n := range s.children(key) {
+				t.Errorf("%s: line %d: a step of the gated upload sets %s, so the upload could run past a refusal", releaseWorkflowPath, n.line, key)
+			}
+		}
+	}
+	if got := stepTokens(steps[at-1]); !slices.Equal(got, []string{"GH_TOKEN"}) {
+		t.Errorf("%s: the gate step's token is %v, want GH_TOKEN alone", releaseWorkflowPath, got)
+	}
+	if got := stepTokens(steps[at]); len(got) != 0 {
+		t.Errorf("%s: the Upload step holds %v, which the upload's tools would inherit", releaseWorkflowPath, got)
 	}
 }

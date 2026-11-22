@@ -1383,7 +1383,10 @@ and it reads what the test binary prints, so a test that prints its own pass and
 exits 0 hides the tests after it, which only review catches; before it, both
 targets refuse a module whose <code>./...</code> leaves out a package holding Go files, as
 a <code>go.mod</code> <code>ignore</code> directive can, or one the module's code imports, as one
-under <code>testdata</code> or <code>_</code> is), <code>scripts/</code>,
+under <code>testdata</code> or <code>_</code> is, and a module that builds code from a vendor
+directory or a local <code>replace</code> outside the repository's modules; a package only
+a test, a <code>//go:build ignore</code> program or another platform's file imports is not
+covered), <code>scripts/</code>,
 <code>internal/docscheck/</code>, <code>internal/core/layering_test.go</code>. The dependency rule is
 an allowlist over six trees, all examined, and every package of this module they
 reach is held to the same refusals by name; no non-test file under <code>adapters/</code>
@@ -1451,7 +1454,8 @@ refuses while main has an open CodeQL alert of severity high or critical
 (<code>scripts/check-gate-runs.sh</code>); it checks again right before it tags the image
 and right before it publishes, names the tag in the request that publishes the
 draft, and reads the release back under that tag. The job that uploads the
-client to the package index checks again right before the upload.</p>
+client to the package index first checks the released commit's own CI and
+Security push runs on main, so a re-run still works once main has moved on.</p>
 <p>Also an OCI image of the gateway, <code>ghcr.io/guardana/control-gateway</code>, for
 linux/amd64 and linux/arm64 on a distroless nonroot base, signed and attested by
 digest the same way, its digest named in the release notes

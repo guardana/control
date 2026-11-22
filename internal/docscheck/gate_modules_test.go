@@ -124,6 +124,26 @@ func TestFuzzRunCountsOnlyATargetThatFuzzed(t *testing.T) {
 	}
 }
 
+// TestFuzzRunCountsOnlyTheTargetItNamed: a TestMain can send the fuzzing
+// engine to another target, whose run is real, so the engine's report alone
+// does not show that the named target fuzzed. Its run has to pass under its
+// own name and run no other target.
+func TestFuzzRunCountsOnlyTheTargetItNamed(t *testing.T) {
+	dir := stageModule(t, []string{"scripts/fuzz-smoke.sh"}, map[string]string{
+		"go.mod": stagedGoMod,
+		"c/c.go": "package c\n",
+		"c/fuzz_test.go": "package c\n\nimport \"testing\"\n\n" +
+			"func FuzzC(f *testing.F) {\n\tf.Add(1)\n\tf.Fuzz(func(t *testing.T, _ int) {})\n}\n\n" +
+			"func FuzzD(f *testing.F) {\n\tf.Add(1)\n\tf.Fuzz(func(t *testing.T, _ int) { t.Fatal(\"FuzzD fuzzed\") })\n}\n",
+		"c/main_test.go": testMainThat("if flag.Lookup(\"test.fuzz\").Value.String() == \"^FuzzD$\" {\n\t\t_ = flag.Set(\"test.fuzz\", \"^FuzzC$\")\n\t\tfmt.Print()\n\t}", "c"),
+	})
+	const want = "fuzz-smoke: ./c FuzzD: its fuzz run ran FuzzC"
+	out, err := runIn(t, dir, "bash scripts/fuzz-smoke.sh 1s")
+	if err == nil || !strings.Contains(out, want) || strings.Contains(out, "target(s) run") {
+		t.Errorf("fuzz-smoke 1s with a TestMain that fuzzes FuzzC when told FuzzD = %v, want a refusal saying %q:\n%s", err, want, out)
+	}
+}
+
 // testMainThat is a TestMain of package pkg that parses the test flags, runs
 // body, then the tests.
 func testMainThat(body, pkg string) string {
@@ -176,6 +196,48 @@ func TestTheTestTargetsRefuseAModuleThatHidesAPackage(t *testing.T) {
 	}
 
 	wantTestTargetsCovered(t)
+}
+
+// TestTheTestTargetsRefuseCodeBuiltFromOutsideTheirModules: a local replace
+// builds a module the gate never loops over, such as one under testdata, and
+// a vendor directory builds dependencies from copies; either way code reaches
+// the product while no test target runs its tests. A replace that names one
+// of the repository's modules passes.
+func TestTheTestTargetsRefuseCodeBuiltFromOutsideTheirModules(t *testing.T) {
+	const covered = ". scripts/lib/go-modules.sh; go_packages_covered go ."
+	failing := "package x\n\nimport \"testing\"\n\nfunc TestX(t *testing.T) { t.Fatal(\"x\") }\n"
+	replaced := func(target string) map[string]string {
+		return map[string]string{
+			"go.mod":              stagedGoMod + "\nrequire example.com/x v0.0.0\n\nreplace example.com/x => " + target + "\n",
+			"staged.go":           "package staged\n\nimport _ \"example.com/x\"\n",
+			target + "/go.mod":    "module example.com/x\n\ngo 1.25\n",
+			target + "/x.go":      "package x\n",
+			target + "/x_test.go": failing,
+		}
+	}
+	out, err := runIn(t, stageModule(t, nil, replaced("./internal/testdata/x")), covered)
+	const outside = "go_packages_covered: module . builds example.com/x from ./internal/testdata/x, which is not one of the repository's modules"
+	if err == nil || !strings.Contains(out, outside) {
+		t.Errorf("go_packages_covered over a replace into testdata = %v, want a refusal saying %q:\n%s", err, outside, out)
+	}
+	if out, err := runIn(t, stageModule(t, nil, replaced("./x")), covered); err != nil {
+		t.Errorf("go_packages_covered over a replace that names the module ./x = %v, want a pass:\n%s", err, out)
+	}
+
+	vendored := map[string]string{
+		"go.mod":                    stagedGoMod + "\nrequire example.com/x v0.0.0\n",
+		"staged.go":                 "package staged\n\nimport _ \"example.com/x\"\n",
+		"vendor/modules.txt":        "# example.com/x v0.0.0\n## explicit; go 1.25\nexample.com/x\n",
+		"vendor/example.com/x/x.go": "package x\n",
+	}
+	const vendor = "go_packages_covered: module . builds from vendor/modules.txt"
+	vdir := stageModule(t, nil, vendored)
+	if out, err := runIn(t, vdir, "go build ./..."); err != nil {
+		t.Fatalf("the vendored module does not build, so the case examines nothing: %v\n%s", err, out)
+	}
+	if out, err := runIn(t, vdir, covered); err == nil || !strings.Contains(out, vendor) {
+		t.Errorf("go_packages_covered over a module with a vendor directory = %v, want a refusal saying %q:\n%s", err, vendor, out)
+	}
 }
 
 // wantTestTargetsCovered wants the Makefile's test and test-race to run

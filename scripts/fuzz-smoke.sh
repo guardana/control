@@ -251,16 +251,18 @@ if [[ "${list_only}" == true ]]; then
   exit 0
 fi
 
-# A run counts only on the fuzzing engine's own report of executions: a
-# TestMain that exits 0 before fuzzing passes go test too. A TestMain that
-# prints such a report itself still passes; that is left to review.
+# A run counts only on the fuzzing engine's own report of executions, from a
+# verbose run that ran the target under its own name and no other: a TestMain
+# that exits 0 before fuzzing passes go test too, and one can point the engine
+# at another target. A TestMain that prints such a report and such names
+# itself still passes; that is left to review.
 log="$(mktemp)"
 trap 'rm -f "${log}"' EXIT
 for target in "${targets[@]}"; do
   read -r mod pkg name <<<"${target}"
   shown="$(shown_package "${mod}" "${pkg}")"
   printf 'fuzz-smoke: %s %s for %s\n' "${shown}" "${name}" "${duration}"
-  if ! go -C "${mod}" test "${pkg}" -run '^$' -fuzz "^${name}\$" -fuzztime "${duration}" 2>&1 | tee "${log}"; then
+  if ! go -C "${mod}" test "${pkg}" -v -run '^$' -fuzz "^${name}\$" -fuzztime "${duration}" 2>&1 | tee "${log}"; then
     printf 'fuzz-smoke: %s failed; the minimized input is now in the working tree at %s/testdata/fuzz/%s/ - keep it as a regression seed or delete it\n' \
       "${name}" "${shown}" "${name}" >&2
     exit 1
@@ -268,6 +270,12 @@ for target in "${targets[@]}"; do
   if ! grep -Eq '^fuzz: elapsed: [^,]*, execs: [1-9][0-9]* ' "${log}"; then
     printf 'fuzz-smoke: %s %s reported no execution of the fuzzing engine, so nothing was fuzzed; refusing to count it as run\n' \
       "${shown}" "${name}" >&2
+    exit 1
+  fi
+  ran="$(sed -nE 's/^=== RUN +([^ /]+).*/\1/p' "${log}" | LC_ALL=C sort -u | tr '\n' ' ')"
+  if [[ "${ran}" != "${name} " ]] || ! grep -Fq -- "--- PASS: ${name} (" "${log}"; then
+    printf 'fuzz-smoke: %s %s: its fuzz run ran %s, not that target alone under its own name; refusing to count it as run\n' \
+      "${shown}" "${name}" "${ran:+${ran% }}${ran:-nothing}" >&2
     exit 1
   fi
 done

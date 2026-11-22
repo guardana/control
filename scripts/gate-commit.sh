@@ -20,8 +20,8 @@
 # commit's api/proto with the latest v* tag before the commit under the tag's
 # own buf.yaml, as CI's proto-breaking job does for a push, so the commit cannot
 # choose the rules it is judged by; a break, or no tag to compare with, means no
-# stamp. Replace refs, grafts and a shallow file are ignored: push sends the
-# commit's own objects, so the gate reads those. make runs in an emptied environment that
+# stamp. Replace refs, grafts, a shallow file and a commit-graph are ignored:
+# push sends the commit's own objects, so the gate reads those. make runs in an emptied environment that
 # keeps only the locations and the network settings listed below, with GO=go,
 # GOFLAGS empty, GOENV=off and no MAKEFLAGS, so the caller's environment and go
 # env cannot narrow what the gate runs, and is told to read the Makefile, which
@@ -30,12 +30,15 @@
 #
 #   scripts/gate-commit.sh [<commit>]    # HEAD by default
 set -euo pipefail
-# An empty GIT_SHALLOW_FILE names no shallow file. Naming a grafts file makes
-# git print its deprecation advice on every commit it reads, hence the
-# setting, added after any the caller passes the same way.
+# An empty GIT_SHALLOW_FILE names no shallow file. git takes parents from a
+# commit-graph, a file or a chain, without checking them against the objects,
+# so it is not read. Naming a grafts file makes git print its deprecation
+# advice on every commit it reads, so that advice is off. Both settings come
+# after any the caller passes the same way.
 n="${GIT_CONFIG_COUNT:-0}"
 export GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_SHALLOW_FILE='' \
-  "GIT_CONFIG_KEY_${n}=advice.graftFileDeprecated" "GIT_CONFIG_VALUE_${n}=false" GIT_CONFIG_COUNT=$((n + 1))
+  "GIT_CONFIG_KEY_${n}=advice.graftFileDeprecated" "GIT_CONFIG_VALUE_${n}=false" \
+  "GIT_CONFIG_KEY_$((n + 1))=core.commitGraph" "GIT_CONFIG_VALUE_$((n + 1))=false" GIT_CONFIG_COUNT=$((n + 2))
 
 die() {
   printf 'gate-commit: %s\n' "$*" >&2
@@ -69,8 +72,9 @@ for v in HOME PATH TMPDIR USER LOGNAME LANG TERM \
     clean+=("${v}=${!v}")
   fi
 done
-clean+=(GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_SHALLOW_FILE= GIT_CONFIG_COUNT=1
-  GIT_CONFIG_KEY_0=advice.graftFileDeprecated GIT_CONFIG_VALUE_0=false GOENV=off GOFLAGS= "REPO_FILES_LIST=${work}/files" "REPO_FILES_LIST_ROOT=${tree}")
+clean+=(GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null GIT_SHALLOW_FILE= GIT_CONFIG_COUNT=2
+  GIT_CONFIG_KEY_0=advice.graftFileDeprecated GIT_CONFIG_VALUE_0=false
+  GIT_CONFIG_KEY_1=core.commitGraph GIT_CONFIG_VALUE_1=false GOENV=off GOFLAGS= "REPO_FILES_LIST=${work}/files" "REPO_FILES_LIST_ROOT=${tree}")
 
 # The commit as git holds it, one "<mode> <object> <path>" line per entry, and
 # its NUL-delimited file list for repo_files.

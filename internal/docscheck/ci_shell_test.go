@@ -318,8 +318,9 @@ func TestNightlyProblems(t *testing.T) {
 // TestARunOfAPushToMainIsNotDisplacedByAnotherEvent: GitHub keeps one pending
 // run per concurrency group, so a manual or scheduled run sharing the group
 // of a push to main could drop that push's run, and the release would find no
-// result for its commit. CI and Security give each event its own group, and
-// no job of theirs sets one.
+// result for its commit. CI and Security give each event its own group,
+// cancel only a superseded pull request run, never a run on main, and no job
+// of theirs sets a group.
 func TestARunOfAPushToMainIsNotDisplacedByAnotherEvent(t *testing.T) {
 	for _, path := range []string{ciWorkflowPath, ".github/workflows/security.yml"} {
 		root, err := parseBlockYAML(readLines(t, repoFS(t), path))
@@ -330,6 +331,12 @@ func TestARunOfAPushToMainIsNotDisplacedByAnotherEvent(t *testing.T) {
 			return slices.ContainsFunc(c.children("group"), func(g *yamlNode) bool { return g.value == nightlyGroup })
 		}) {
 			t.Errorf("%s: the concurrency group is not %s, so a run of another event can displace a pending push run on main", path, nightlyGroup)
+		}
+		const cancel = "${{ github.event_name == 'pull_request' }}"
+		if !slices.ContainsFunc(root.children("concurrency"), func(c *yamlNode) bool {
+			return slices.ContainsFunc(c.children("cancel-in-progress"), func(g *yamlNode) bool { return g.value == cancel })
+		}) {
+			t.Errorf("%s: cancel-in-progress is not %s, so a run on main can be cancelled by the next one", path, cancel)
 		}
 		for _, jobs := range root.children("jobs") {
 			for _, job := range jobs.kids {

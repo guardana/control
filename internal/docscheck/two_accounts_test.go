@@ -11,9 +11,11 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"unicode"
 	"unicode/utf8"
@@ -128,23 +130,45 @@ func testsOfFiles(module string, files map[string][]byte) (map[testreport.Run]bo
 	return declared, tagged, nil
 }
 
+// jobToolTags are the tool tags this toolchain sets for linux/amd64, the
+// two-accounts job's platform: its experiments and the amd64 level. The go
+// command reports them, since an experiment can be on for one platform alone.
+var jobToolTags = sync.OnceValues(func() ([]string, error) {
+	cmd := exec.Command("go", "list", "-f", "{{context.ToolTags}}", "runtime")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "GOWORK=off", "GOFLAGS=")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing the tool tags for linux/amd64: %w", err)
+	}
+	text := strings.TrimSpace(string(out))
+	if !strings.HasPrefix(text, "[") || !strings.HasSuffix(text, "]") {
+		return nil, fmt.Errorf("go list answered %q for the tool tags of linux/amd64", text)
+	}
+	tags := strings.Fields(strings.Trim(text, "[]"))
+	if !slices.Contains(tags, "amd64.v1") {
+		return nil, fmt.Errorf("the tool tags go list answered for linux/amd64 lack amd64.v1: %q", text)
+	}
+	return tags, nil
+})
+
 // jobBuildTag reports whether the two-accounts job's build satisfies tag: it
 // builds for linux/amd64 under gc with cgo on, and sets the release tags (go1.1
-// to this toolchain's own) and the experiment tags of this toolchain. An
-// experiment this toolchain enables for another architecture alone is not
-// seen.
-func jobBuildTag(tag string) bool {
+// to this toolchain's own) and the tool tags of that platform.
+func jobBuildTag(tag string, tools []string) bool {
 	switch tag {
-	case "linux", "unix", "amd64", "amd64.v1", "gc", "cgo":
+	case "linux", "unix", "amd64", "gc", "cgo":
 		return true
 	}
-	return slices.Contains(build.Default.ReleaseTags, tag) ||
-		strings.HasPrefix(tag, "goexperiment.") && slices.Contains(build.Default.ToolTags, tag)
+	return slices.Contains(build.Default.ReleaseTags, tag) || slices.Contains(tools, tag)
 }
 
 // needsTwoAccountsTag reports whether the file's //go:build line holds in the
 // two-accounts job's build with the twoaccounts tag and not without it.
 func needsTwoAccountsTag(src []byte) (bool, error) {
+	tools, err := jobToolTags()
+	if err != nil {
+		return false, err
+	}
 	sc := bufio.NewScanner(bytes.NewReader(src))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -160,7 +184,7 @@ func needsTwoAccountsTag(src []byte) (bool, error) {
 		}
 		on := func(with bool) bool {
 			return expr.Eval(func(tag string) bool {
-				return jobBuildTag(tag) || (with && tag == twoAccountsTag)
+				return jobBuildTag(tag, tools) || (with && tag == twoAccountsTag)
 			})
 		}
 		return on(true) && !on(false), nil
@@ -342,11 +366,20 @@ func TestOnlyTheTwoAccountsTagMarksATaggedFile(t *testing.T) {
 		"//go:build twoaccounts && arm64.v8.0\n\npackage p\n": false,
 		"//go:build twoaccounts && darwin\n\npackage p\n":     false,
 	}
-	i := slices.IndexFunc(build.Default.ToolTags, func(tag string) bool { return strings.HasPrefix(tag, "goexperiment.") })
-	if i < 0 {
-		t.Fatalf("this toolchain sets no goexperiment tag: %v", build.Default.ToolTags)
+	tools, err := jobToolTags()
+	if err != nil {
+		t.Fatal(err)
 	}
-	cases["//go:build twoaccounts && "+build.Default.ToolTags[i]+"\n\npackage p\n"] = true
+	experiments := 0
+	for _, tag := range tools {
+		if strings.HasPrefix(tag, "goexperiment.") {
+			cases["//go:build twoaccounts && "+tag+"\n\npackage p\n"] = true
+			experiments++
+		}
+	}
+	if experiments == 0 {
+		t.Fatalf("this toolchain sets no goexperiment tag for linux/amd64: %v", tools)
+	}
 	for src, want := range cases {
 		got, err := needsTwoAccountsTag([]byte(src))
 		if err != nil || got != want {

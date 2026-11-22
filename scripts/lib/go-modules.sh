@@ -67,9 +67,40 @@ go_modules() {
 # and every package of the module that one of those, or a package of ./...,
 # imports, since go builds that one wherever it lies, while ./... skips a
 # directory under testdata or one whose name starts with "_" or ".".
+# It also fails when the module builds code from outside the modules
+# go_modules lists, whose tests no target runs: from a vendor directory, or
+# from a directory a local replace names.
+# Not covered: a package only a test file imports, since imports are followed
+# from the non-test build; one only a program under //go:build ignore imports;
+# and one only a file built for another platform than this run's imports.
 go_packages_covered() {
   local go="$1" mod="$2" mods files path dir owner m rel dirs="" want imported listed missing
+  local replaced old new target roots="" abs
   mods="$(go_modules)" || return 1
+  if [[ -e "${mod}/vendor/modules.txt" ]]; then
+    printf 'go_packages_covered: module %s builds from vendor/modules.txt, copies of its dependencies whose tests no target runs\n' "${mod}" >&2
+    return 1
+  fi
+  replaced="$(GOWORK=off "${go}" -C "${mod}" list -m -e \
+    -f '{{with .Replace}}{{if not .Version}}{{$.Path}}{{"\t"}}{{.Path}}{{"\n"}}{{end}}{{end}}' all)" || {
+    printf 'go_packages_covered: listing the replaced modules of module %s failed\n' "${mod}" >&2
+    return 1
+  }
+  while IFS= read -r m; do
+    abs="$(cd "${m}" && pwd -P)" || return 1
+    roots+="${abs}"$'\n'
+  done <<<"${mods}"
+  while IFS=$'\t' read -r old new; do
+    [[ -n "${old}" ]] || continue
+    target="${new}"
+    [[ "${target}" == /* ]] || target="${mod}/${new}"
+    abs="$(cd "${target}" 2>/dev/null && pwd -P)" || abs=""
+    if [[ -z "${abs}" ]] || ! grep -Fxq -- "${abs}" <<<"${roots}"; then
+      printf "go_packages_covered: module %s builds %s from %s, which is not one of the repository's modules, so no target runs its tests\n" \
+        "${mod}" "${old}" "${new}" >&2
+      return 1
+    fi
+  done <<<"${replaced}"
   files="$(repo_files '*.go')" || return 1
   while IFS= read -r path; do
     [[ -n "${path}" ]] || continue
