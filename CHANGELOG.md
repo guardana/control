@@ -352,6 +352,35 @@ verify one.
   [Claude Code hooks](docs/reference/claude-code-hooks.md) credits a decision
   to a sub-agent's `Write` only when the trail holds more decided writes of that file than the other
   calls that wrote it could account for.
+- `procedure test` refuses an inline event whose `schemaVersion` is of
+  another major or not `MAJOR.MINOR`, as the export reader refuses it; such
+  an event was judged as if this build could read it.
+- `procedure test` exits 1 when it cannot write its report, as the exit
+  status table says for a failed case; it exited 2, the status of input
+  refused before any case ran.
+- `notify` counts an alert whose line could not be written to the program,
+  its standard input closed first, as a failed delivery; it marked the alert
+  delivered when the program then exited 0.
+- `notify` runs the program with only `PATH`, `HOME`, `LANG`, `LC_ALL`,
+  `TMPDIR` and `USER` of its own environment; the program got all of it, a
+  credential included.
+- `notify` exits 1 on an interrupt while the log held only delivered alerts
+  and informs, and when the log ends in a write no report closed and no
+  writer holds, naming its bytes; both exited 0.
+- `run` exits 1 when the spool failed to close a segment it retired before
+  the stop; the failure was logged and the run exited 0.
+- `spool drain` creates the drained file and syncs it through the directory
+  it judged, so a link in the path retargeted at the spool after the check
+  cannot put the file in the spool.
+- `run` returns the error of a listener that failed on its own while the
+  stop was under way; it was dropped, and the run could exit 0.
+- `dev` refuses a configuration that sets `health.socket`; it started the
+  plane with that socket, outside its state directory and off the loopback
+  listeners its page names.
+- `console --until-stdin-closes` exits 1 when its standard input fails to
+  read, naming the failure; it stopped as at the input's end and exited 0.
+- The evidence-report example refuses a version whose major has a leading
+  zero, `01.0`, as the contracts do; it read it as major 1.
 
 ### Documentation
 

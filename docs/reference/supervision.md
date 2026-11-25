@@ -152,19 +152,18 @@ The reader refuses an unknown schema or a member its schema lacks.
 
 ## notify
 
-`notify` hands each `alert` record, in log order, one line on its
-standard input, to the program after `--`, without a shell, and kills its
-process group at the timeout (30 s by default) and again once the program
-exits. A delivery is keyed on the
-finding id and verdict and marked in the state only after the program exits
-0, so a crash delivers that record again: a receiver drops a key it has
-seen. The state is an owner-only directory, locked while in use; `--init`
-starts one and is refused over one. The next run retries a failed delivery,
-and only a new state repeats a delivered one. Exit 0 when nothing
-failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark not on disk, a log
-changed under it); 2, printing nothing, when the state or the log is refused
-before any program ran.
+`notify` hands each `alert` record, in log order, one line on standard
+input, to the program after `--`, without a shell, with only `PATH`,
+`HOME`, `LANG`, `LC_ALL`, `TMPDIR` and `USER` of its environment, and kills
+its process group at the timeout (default 30 s) and on exit. A delivery,
+keyed by finding id and verdict, is marked only once the program took its
+whole line and exited 0, so a crash delivers it again; a receiver drops a
+seen key. The owner-only state directory is locked in use; `--init` starts
+one, refused over one. A failed delivery is retried; a new state alone
+repeats a delivered one. Exit 0 when nothing failed; 1 when a delivery
+failed, on an interrupt, on a write no report closed and no writer holds, or
+when the run stopped after a program ran (a mark unsaved, a log changed);
+2, printing nothing, on a state or log refused before any program ran.
 
 ## findings export
 

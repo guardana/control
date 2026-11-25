@@ -47,9 +47,10 @@ func notifyFlagSet(command string, out io.Writer) *flag.FlagSet {
 }
 
 // notifyCommand delivers each alert of the findings log the state has not
-// marked to the program. It exits 0 when no delivery failed, 1 when one did
-// or the run stopped after a program ran, and 2, printing nothing, on a usage
-// error or a refusal before any program ran.
+// marked to the program. It exits 0 when no delivery failed, 1 when one did,
+// the log ends in a write no report closed and no writer holds, or the run
+// stopped after a program ran, and 2, printing nothing, on a usage error or a
+// refusal before any program ran.
 func notifyCommand(args []string, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -74,7 +75,7 @@ func runNotify(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	if err != nil {
 		return fail(stderr, notifyName, err)
 	}
-	if sum.Failed != 0 {
+	if sum.Failed != 0 || sum.Unclosed != 0 {
 		return exitFail
 	}
 	return exitOK
@@ -114,6 +115,9 @@ func notifyLines(sum notify.Summary) []string {
 	var out []string
 	for _, f := range sum.Failures {
 		out = append(out, "failed "+oneLine(f.Key)+": "+oneLine(f.Err.Error()))
+	}
+	if sum.Unclosed != 0 {
+		out = append(out, fmt.Sprintf("unclosed: %d bytes after the last write a report closed, and no writer holds the log", sum.Unclosed))
 	}
 	return append(out, fmt.Sprintf("%d delivered, %d already delivered, %d failed, %d inform left",
 		sum.Delivered, sum.AlreadyDelivered, sum.Failed, sum.Inform))

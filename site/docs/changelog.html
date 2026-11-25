@@ -479,6 +479,35 @@ refused for its depth.</li>
 <a href="/docs/reference/claude-code-hooks">Claude Code hooks</a> credits a decision
 to a sub-agent's <code>Write</code> only when the trail holds more decided writes of that file than the other
 calls that wrote it could account for.</li>
+<li><code>procedure test</code> refuses an inline event whose <code>schemaVersion</code> is of
+another major or not <code>MAJOR.MINOR</code>, as the export reader refuses it; such
+an event was judged as if this build could read it.</li>
+<li><code>procedure test</code> exits 1 when it cannot write its report, as the exit
+status table says for a failed case; it exited 2, the status of input
+refused before any case ran.</li>
+<li><code>notify</code> counts an alert whose line could not be written to the program,
+its standard input closed first, as a failed delivery; it marked the alert
+delivered when the program then exited 0.</li>
+<li><code>notify</code> runs the program with only <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>,
+<code>TMPDIR</code> and <code>USER</code> of its own environment; the program got all of it, a
+credential included.</li>
+<li><code>notify</code> exits 1 on an interrupt while the log held only delivered alerts
+and informs, and when the log ends in a write no report closed and no
+writer holds, naming its bytes; both exited 0.</li>
+<li><code>run</code> exits 1 when the spool failed to close a segment it retired before
+the stop; the failure was logged and the run exited 0.</li>
+<li><code>spool drain</code> creates the drained file and syncs it through the directory
+it judged, so a link in the path retargeted at the spool after the check
+cannot put the file in the spool.</li>
+<li><code>run</code> returns the error of a listener that failed on its own while the
+stop was under way; it was dropped, and the run could exit 0.</li>
+<li><code>dev</code> refuses a configuration that sets <code>health.socket</code>; it started the
+plane with that socket, outside its state directory and off the loopback
+listeners its page names.</li>
+<li><code>console --until-stdin-closes</code> exits 1 when its standard input fails to
+read, naming the failure; it stopped as at the input's end and exited 0.</li>
+<li>The evidence-report example refuses a version whose major has a leading
+zero, <code>01.0</code>, as the contracts do; it read it as major 1.</li>
 </ul>
 <h3 id="documentation">Documentation</h3>
 <ul>
