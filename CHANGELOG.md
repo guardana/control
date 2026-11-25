@@ -295,10 +295,10 @@ verify one.
   nothing written; they lock the new file too until the swap settled, so a
   writer that judged it waits rather than replacing it first. Any process
   that can read the file can hold a lock of it: the write waits for it up to
-  the command's ten seconds, and the dev plane's statement renewal until the
-  plane stops, then is refused with nothing written. Another program takes
-  no such lock: a file it puts there
-  between that check and the swap comes out of the swap and is put back, but
+  the command's ten seconds, and the dev plane's statement renewal up to its
+  renewal period, then is refused with nothing written. Another program takes
+  no such lock: a file it puts there between that check and the swap comes
+  out of the swap and is put back, but
   a reader of the name in that instant reads the refused file. A write
   succeeds only while the name holds its own file once the swap settled. A
   file renamed over the output after the last check was replaced, and with
