@@ -45,8 +45,12 @@ verify one.
   takes no `reaction-route/v1alpha2` route, so a carry from a 0.17 list
   names two other ways instead: give the new route the rule it names, at
   the stop's scope and lasting at least the stop's span, sign it and carry
-  again; or start a new list with `stops init` under a new stop list floor
-  (`stops floor init`), which keeps none of the old stops. `stops list`
+  again, or, where the route already names that rule at another scope, give
+  that rule the stop's scope, since a route names a rule once; or start a new
+  list with `stops init` under a new stop list floor (`stops floor init`),
+  which keeps none of the old stops. A carry keeps each stop's tenant and
+  project, so a carry into a route of another names only a route of the
+  list's or a new list. `stops list`
   shows each kept stop's rule; review those and lift any you do not keep. The
   example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
   ([ADR-0088](docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md),
@@ -288,7 +292,8 @@ verify one.
 - **Breaking:** a signed carry takes the write bits off the list it carried
   from before it writes the new list, giving them back when that write left
   no new list in place, and `react` and `stops lift` refuse a list its owner may not
-  write. Run the carry as the old list's owner: under another account it
+  write. A carry into a directory that already holds a list is refused before
+  the old list loses a bit. Run the carry as the old list's owner: under another account it
   refuses before it writes anything. A 0.17 `react` left on the old list
   fails to write; give the list its write bits back before 0.17 uses it
   after a roll back. A stop appended to the old list after the carry reached

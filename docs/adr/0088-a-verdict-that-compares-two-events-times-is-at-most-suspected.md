@@ -50,8 +50,10 @@ run, an agent or a principal that did nothing the rule names.
   written under even when it names a version `1` of the three, since a lift
   only ends a stop; the carry then goes through. A `reaction-route/v1alpha2`
   route is the exception: no lift is written under it, so a carry from such
-  a list names a rule of the new route that would keep the stop, or a new
-  list under a new stop list floor. The operator finds the kept stops with
+  a list names a rule of the new route that would keep the stop, or the
+  scope its rule must take when the route names it at another, or a new
+  list under a new stop list floor. A stop of another tenant or project than
+  the new route's is never kept, and its refusal names only a new list. The operator finds the kept stops with
   `stops list` and lifts them.
 - `DENIED_ACTION_RETRIED_AROUND` is unchanged: `SUSPECTED` at most, and
   `INDETERMINATE` while no importer stamps a call's start.

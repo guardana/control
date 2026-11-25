@@ -36,7 +36,7 @@ func v2ListOf(t *testing.T, dir string, r reaction.Route, serial int64, stop rea
 // it names, lasting the hour, then carries the stop and a plane stops run-1.
 func TestARefusedCarryFromA20ListNamesARemedyThatWorks(t *testing.T) {
 	for _, c := range []struct{ rule, keeps string }{
-		{"STEP_OUTSIDE_PROCEDURE", `rule STEP_OUTSIDE_PROCEDURE of procedure "refund" version "1" at scope run`},
+		{"STEP_OUTSIDE_PROCEDURE", `rule STEP_OUTSIDE_PROCEDURE 1 of procedure "refund" version "1" at scope run`},
 		{"DEADLINE_EXCEEDED", `a rule of procedure "refund" version "1" at scope run`},
 	} {
 		t.Run(c.rule, func(t *testing.T) {
@@ -82,5 +82,41 @@ func TestARefusedCarryFromA20ListNamesARemedyThatWorks(t *testing.T) {
 				t.Errorf("run-1 on the carried list: %s, want %s", st, reaction.Stopped)
 			}
 		})
+	}
+}
+
+// TestARefusedCarryFromA20ListNamesTheScopeTheRoutesRuleMustTake: a 2.0
+// run stop of REPEATED_DENIAL "1", judged as one of "2", carried into a route
+// whose REPEATED_DENIAL "2" of refund stops an agent, is refused naming that
+// rule, its scope and the run scope it must take instead, since a route names
+// a rule once; the route with the rule at scope run then carries the stop.
+func TestARefusedCarryFromA20ListNamesTheScopeTheRoutesRuleMustTake(t *testing.T) {
+	from := emptyDir(t)
+	fromRoute := v2RouteWith(t, from, 3, v2Rule(t, "REPEATED_DENIAL"))
+	stop := stopOf(t, "f-1", "run-1", clock0.Add(-time.Minute))
+	stop.RuleID = "REPEATED_DENIAL"
+	v2ListOf(t, from, fromRoute, 5, stop)
+	into := emptyDir(t)
+	agents := retiredWideRoute(t, into, 4, false, refundRule(t, "STEP_OUTSIDE_PROCEDURE", "1", "run", "3600"),
+		refundRule(t, "REPEATED_DENIAL", "2", "agent", "7200"))
+	_, err := stopwrite.CarrySigned(bg, from, fromRoute, into, agents, clock0, signer(), nil)
+	if !errors.Is(err, stopwrite.ErrRefused) || !errors.Is(err, reaction.ErrClaimScope) {
+		t.Fatalf("CarrySigned into a route whose rule stops an agent: %v; want %v", err, reaction.ErrClaimScope)
+	}
+	for _, want := range []string{`finding "f-1" under rule REPEATED_DENIAL 1`,
+		`the new route names rule REPEATED_DENIAL 2 of procedure "refund" version "1" at scope agent, and a route names a rule once: ` +
+			`give it scope run, so it stops no agent or principal, with expires_seconds of at least 3600, sign it and carry again`,
+		"start a new list with stops init under a new stop list floor (stops floor init)"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal names no %q: %v", want, err)
+		}
+	}
+	if strings.Contains(err.Error(), "give the new route") {
+		t.Errorf("the refusal names a rule the route cannot add beside its own: %v", err)
+	}
+	runs := retiredWideRoute(t, into, 4, false, refundRule(t, "STEP_OUTSIDE_PROCEDURE", "1", "run", "3600"),
+		refundRule(t, "REPEATED_DENIAL", "2", "run", "3600"))
+	if got, err := stopwrite.CarrySigned(bg, from, fromRoute, into, runs, clock0, signer(), nil); err != nil || got.Stops != 1 {
+		t.Fatalf("CarrySigned into the route with the rule at scope run: %+v, %v", got, err)
 	}
 }

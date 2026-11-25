@@ -175,8 +175,10 @@ hours for a rule with none. No writer appends a new stop of those versions.</li>
 written under even when it names a version <code>1</code> of the three, since a lift
 only ends a stop; the carry then goes through. A <code>reaction-route/v1alpha2</code>
 route is the exception: no lift is written under it, so a carry from such
-a list names a rule of the new route that would keep the stop, or a new
-list under a new stop list floor. The operator finds the kept stops with
+a list names a rule of the new route that would keep the stop, or the
+scope its rule must take when the route names it at another, or a new
+list under a new stop list floor. A stop of another tenant or project than
+the new route's is never kept, and its refusal names only a new list. The operator finds the kept stops with
 <code>stops list</code> and lifts them.</li>
 <li><code>DENIED_ACTION_RETRIED_AROUND</code> is unchanged: <code>SUSPECTED</code> at most, and
 <code>INDETERMINATE</code> while no importer stamps a call's start.</li>
