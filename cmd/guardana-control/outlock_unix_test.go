@@ -35,6 +35,29 @@ func readerLocked(t *testing.T, path string) func() {
 	return release
 }
 
+// unchangedSince fails the test unless path is still the file judged
+// describes, by its inode, and holds the bytes it held then.
+func unchangedSince(t *testing.T, path string, judged os.FileInfo, body string) {
+	t.Helper()
+	now, err := os.Lstat(path)
+	if err != nil || !os.SameFile(now, judged) {
+		t.Errorf("%s was replaced under a reader's lock: %v", path, err)
+	}
+	if got := readFile(t, path); got != body {
+		t.Errorf("%s changed under a reader's lock; it holds %q", path, got)
+	}
+}
+
+// lstatOf is os.Lstat of path, which must succeed.
+func lstatOf(t *testing.T, path string) os.FileInfo {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info
+}
+
 // shortLockWaits shortens every wait a command makes for a lock, for the
 // test's length.
 func shortLockWaits(t *testing.T, wait time.Duration) {
@@ -76,15 +99,13 @@ func TestACommandGivesUpOnAReaderLockOfItsOutputWhenItsWaitEnds(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			shortLockWaits(t, 300*time.Millisecond)
 			out, run := setup(t)
-			before := readFile(t, out)
+			before, judged := readFile(t, out), lstatOf(t, out)
 			release := readerLocked(t, out)
 			code, stderr := commandWithin(t, run)
 			if code != exitFail || !strings.Contains(stderr, "--out "+out) || !strings.Contains(stderr, string(ondisk.ErrLockHeld)) {
 				t.Errorf("a run under a reader's lock of --out: exit %d, stderr %q; want a refusal naming --out and the lock", code, stderr)
 			}
-			if got := readFile(t, out); got != before {
-				t.Errorf("--out changed under a reader's lock; it holds %q", got)
-			}
+			unchangedSince(t, out, judged, before)
 			release()
 			if code, stderr := run(); code != exitOK {
 				t.Errorf("the control, the reader gone: exit %d, stderr %q", code, stderr)
@@ -106,7 +127,7 @@ func TestSuperviseViewGivesUpOnAReaderLockOfThePageWhenItsWaitEnds(t *testing.T)
 	if code, _, stderr := tr.superviseInto(t, "first", "--evidence", x, "--view", view); code != exitOK {
 		t.Fatalf("the first page: exit %d, stderr %q", code, stderr)
 	}
-	before := readFile(t, view)
+	before, judged := readFile(t, view), lstatOf(t, view)
 	release := readerLocked(t, view)
 	code, stderr := commandWithin(t, func() (int, string) {
 		code, _, stderr := tr.superviseInto(t, "locked", "--evidence", x, "--view", view)
@@ -115,9 +136,7 @@ func TestSuperviseViewGivesUpOnAReaderLockOfThePageWhenItsWaitEnds(t *testing.T)
 	if code == exitOK || !strings.Contains(stderr, "--view "+view) || !strings.Contains(stderr, string(ondisk.ErrLockHeld)) {
 		t.Errorf("a run under a reader's lock of the page: exit %d, stderr %q; want a failure naming --view and the lock", code, stderr)
 	}
-	if got := readFile(t, view); got != before {
-		t.Errorf("the page changed under a reader's lock")
-	}
+	unchangedSince(t, view, judged, before)
 	release()
 	if code, _, stderr := tr.superviseInto(t, "control", "--evidence", x, "--view", view); code != exitOK {
 		t.Errorf("the control, the reader gone: exit %d, stderr %q", code, stderr)

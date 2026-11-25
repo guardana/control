@@ -19,8 +19,8 @@ import (
 
 // TestADevRenewalGivesUpOnAReaderLockOfTheStatement: a reader holding a
 // shared flock of the statement file holds a renewal off only until its
-// context ends, and halting the plane ends a renewal that waits, so the
-// plane's shutdown never waits on that reader.
+// context ends; a running plane's renewal fails, and says so on the log, once
+// it waited a whole period, and halting the plane does not wait on the reader.
 func TestADevRenewalGivesUpOnAReaderLockOfTheStatement(t *testing.T) {
 	b := &controlv1.PolicyBundle{Ref: &controlv1.PolicyBundleRef{BundleId: "dev-policy", Digest: "sha256:" + strings.Repeat("a", 64)}}
 	path := filepath.Join(t.TempDir(), "policy.statement")
@@ -48,11 +48,14 @@ func TestADevRenewalGivesUpOnAReaderLockOfTheStatement(t *testing.T) {
 	if err := returnsSoon(t, func() error { return s.renew(ctx, time.Now().Add(time.Second)) }); !errors.Is(err, files.ErrLockHeld) {
 		t.Errorf("a renewal under a reader's lock = %v, want files.ErrLockHeld", err)
 	}
-	var log bytes.Buffer
-	s.every = 10 * time.Millisecond
+	var log syncBuffer
+	s.every = 50 * time.Millisecond
 	s.start(t.Context(), &log)
-	time.Sleep(100 * time.Millisecond)
+	line := waitFor(t, &log, "renewing the freshness statement")
 	_ = returnsSoon(t, func() error { s.halt(); return nil })
+	if !strings.Contains(line, string(files.ErrLockHeld)) || !strings.Contains(line, context.DeadlineExceeded.Error()) {
+		t.Errorf("the renewal logged %q before halt, want the lock held past its period", line)
+	}
 	if after, err := os.ReadFile(path); err != nil || !bytes.Equal(after, before) { //nolint:gosec // G304: a path in this test's own directory
 		t.Errorf("the statement changed under a reader's lock: %v", err)
 	}

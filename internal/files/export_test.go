@@ -32,3 +32,11 @@ func BeforeLocked(t interface{ Cleanup(func()) }, f func(name string)) {
 	beforeLocked = f
 	t.Cleanup(func() { beforeLocked = saved })
 }
+
+// InSettle sets what runs once ReplaceJudgedIn's settle removed the judged
+// file and before it judges what the name holds, for the test's length.
+func InSettle(t interface{ Cleanup(func()) }, f func()) {
+	saved := inSettle
+	inSettle = f
+	t.Cleanup(func() { inSettle = saved })
+}

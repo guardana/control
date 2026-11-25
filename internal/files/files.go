@@ -70,7 +70,7 @@ const (
 	// another open of the judged file or of the new one held a lock of it
 	// until the caller's context ended. It is not ErrNothingWritten, since
 	// judging the name again would wait on the same lock.
-	ErrLockHeld Error = "files: another process holds a lock of the file"
+	ErrLockHeld Error = "files: another open of the file holds a lock of it"
 )
 
 // errLink is an open of the judged name that found a symbolic link there.
@@ -212,7 +212,7 @@ func ReplaceJudgedIn(ctx context.Context, root *os.Root, name string, body []byt
 	}
 	beforeLocked(name)
 	if err := lockNamed(ctx, held, strconv.Quote(name)); err != nil {
-		return errors.Join(err, held.Close())
+		return errors.Join(lockRefused(err, nil), held.Close())
 	}
 	return errors.Join(replaceHeld(ctx, root, held, name, body, perm, judged), held.Close())
 }
@@ -222,11 +222,21 @@ func ReplaceJudgedIn(ctx context.Context, root *os.Root, name string, body []byt
 func lockNamed(ctx context.Context, f *os.File, what string) error {
 	switch err := lockFile(ctx, f); {
 	case errors.Is(err, ErrLockHeld):
-		return fmt.Errorf("%w %s, and the wait for it ended (%w), so nothing was written", err, what, context.Cause(ctx))
+		return fmt.Errorf("%w: %s; the wait for it ended (%w)", err, what, context.Cause(ctx))
 	case err != nil:
 		return fmt.Errorf("files: locking %s: %w", what, err)
 	}
 	return nil
+}
+
+// lockRefused is refusal, a lock that could not be taken before the new file
+// took the name, saying nothing was written when removed, the removal of the
+// new file, succeeded, and joined with removed otherwise.
+func lockRefused(refusal, removed error) error {
+	if removed != nil {
+		return errors.Join(refusal, removed)
+	}
+	return fmt.Errorf("%w; nothing was written", refusal)
 }
 
 // replaceHeld is ReplaceJudgedIn once held, the file at name, is locked.
@@ -254,7 +264,7 @@ func replaceHeld(ctx context.Context, root *os.Root, held *os.File, name string,
 	if err == nil {
 		err = exchangeLocked(root, fresh, name, tmp, judged)
 	} else {
-		err = errors.Join(err, root.Remove(tmp))
+		err = lockRefused(err, root.Remove(tmp))
 	}
 	return errors.Join(err, fresh.Close())
 }
@@ -289,6 +299,7 @@ func settle(root *os.Root, name, tmp string, written fs.FileInfo) error {
 	if err := errors.Join(root.Remove(tmp), syncRoot(root)); err != nil {
 		return err
 	}
+	inSettle()
 	if now, err := root.Lstat(name); err != nil || !os.SameFile(now, written) {
 		return errors.Join(fmt.Errorf("%w: %q was replaced once the new file took it", ErrNotKept, name), err)
 	}
@@ -340,6 +351,10 @@ func putBack(root *os.Root, name, tmp string, written fs.FileInfo) error {
 // betweenExchanges runs, in a test, once the new file took the name and
 // before what came out is compared with the entry judged.
 var betweenExchanges = func(*os.Root, string) {}
+
+// inSettle runs, in a test, once settle removed the judged file and before
+// it judges what the name holds.
+var inSettle = func() {}
 
 // beforeLocked runs, in a test, once the file a lock is taken of is open
 // under name and before the lock is taken.

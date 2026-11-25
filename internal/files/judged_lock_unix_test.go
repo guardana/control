@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -217,39 +218,53 @@ func TestALockHeldOfTheNewFileRefusesTheReplaceWhenTheContextEnds(t *testing.T) 
 }
 
 // TestAWriterThatJudgedTheNewFileWaitsUntilTheReplaceSettles: a second
-// writer that judges the new file once it took the name, before the first
-// writer settled, waits on the new file's lock; the first answers nil, and
-// the second then replaces the new file.
+// writer that judges the new file once it took the name waits on the new
+// file's lock until the first writer settled, both while the first compares
+// what came out of the exchange and while it settles; the first answers nil,
+// and the second then replaces the new file.
 func TestAWriterThatJudgedTheNewFileWaitsUntilTheReplaceSettles(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")
 	writeFile(t, out, []byte("judged"), 0o644)
 	judged := lstat(t, out)
 	second := make(chan error, 1)
-	started, early := false, false
-	files.BetweenExchanges(t, func(*os.Root, string) {
-		if started {
+	var answered atomic.Bool
+	waiting := func(when string) {
+		if answered.Load() {
 			return
 		}
-		started = true
-		first := lstat(t, out)
-		go func() { second <- files.ReplaceJudged(t.Context(), dir, "out", []byte("second"), 0o644, first) }()
 		select {
 		case err := <-second:
-			early = true
-			t.Errorf("the second writer answered %v before the first settled", err)
-		case <-time.After(500 * time.Millisecond):
+			answered.Store(true)
+			t.Errorf("the second writer answered %v %s", err, when)
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+	var exchanged, settling atomic.Bool
+	files.BetweenExchanges(t, func(*os.Root, string) {
+		if exchanged.CompareAndSwap(false, true) {
+			first := lstat(t, out)
+			go func() { second <- files.ReplaceJudged(t.Context(), dir, "out", []byte("second"), 0o644, first) }()
+			waiting("before the first compared what came out of the exchange")
+		}
+	})
+	files.InSettle(t, func() {
+		if settling.CompareAndSwap(false, true) {
+			waiting("while the first settled")
 		}
 	})
 	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("first"), 0o644, judged); err != nil {
 		t.Errorf("the first writer = %v, want nil: the name held its file once it settled", err)
 	}
-	if !started {
-		t.Fatal("the first writer never reached its exchange")
+	if !answered.Load() {
+		secondReplaced(t, dir, second)
 	}
-	if early {
-		return
-	}
+}
+
+// secondReplaced fails the test unless the second writer, which answers on
+// second, replaced the first writer's file and left the one name in dir.
+func secondReplaced(t *testing.T, dir string, second <-chan error) {
+	t.Helper()
 	select {
 	case err := <-second:
 		if err != nil {
@@ -258,7 +273,7 @@ func TestAWriterThatJudgedTheNewFileWaitsUntilTheReplaceSettles(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the second writer still waits once the first settled")
 	}
-	if got := readBody(t, out); got != "second" {
+	if got := readBody(t, filepath.Join(dir, "out")); got != "second" {
 		t.Errorf("the name holds %q, want the second writer's file", got)
 	}
 	if got := entries(t, dir); len(got) != 1 {
