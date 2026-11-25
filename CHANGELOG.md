@@ -46,6 +46,11 @@ verify one.
   example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
   ([ADR-0088](docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md),
   [reaction](docs/reference/reaction.md)).
+- **Breaking:** a `procedure test` cases document states `project` in `run`
+  and in each run of `tree`; a document without it is refused with exit 2,
+  naming the member. Add the project the run's record names. The format
+  stays `0.1`, `experimental`
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
 
 ### Added
 
@@ -71,6 +76,19 @@ verify one.
 
 ### Fixed
 
+- `policy test`, `policy explain` and `policy compare` refuse a case whose
+  `authorized_args` is not valid UTF-8 or holds an unpaired surrogate escape
+  such as `\ud800`, naming the member. The case reader put U+FFFD in place
+  of such bytes, so the kernel decided other arguments than the case wrote,
+  and a case could pass `ALLOW` for bytes the kernel refuses
+  ([policy format](docs/reference/policy-format.md#a-test-case)).
+- A `procedure test` case states the project its run's record names, as
+  `project` in `run` and in each run of `tree`, and is judged as `supervise`
+  judges that run: events or a run of another project fail the case as
+  `refused:`, and its sources are of the run's project. The case took the
+  project from its events, so a case passed with a finding that `supervise`
+  would refuse to make for a run recorded under another project
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
 - `supervise` lists a step's requests, and a finding cites and keeps its
   references, in the order of the plane's times of the proposals, a tie by
   request id. It used the order in which an export first held each request,
@@ -197,6 +215,78 @@ verify one.
   newline that no writer holds, with `end_reached` and no `partial_tail`
   gap, so such an export no longer passes as whole
   ([contracts](docs/contracts.md#the-evidence-export)).
+- **Breaking:** a signed plane refuses to start, and `doctor` fails, when
+  `records/` holds more than the 65,536 records a start reads to carry their
+  closes; `guardana-control runs prune` archives the expired trees to bring
+  it under. The start logged the cut and served, so the open record of a run
+  closed past the cut, put back, was taken
+  ([runs](docs/reference/runs.md),
+  [ADR-0076](docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)).
+- A signed child's first call beside a root whose state file is gone and
+  whose lock file is not leaves no `.seen`. The mark was made before the
+  call was refused, so once the root's state was put back the child ran
+  after its parent's close was carried.
+- A signed child's first call whose ancestor walk reads a closed ancestor
+  carries that close and is refused as `closed`. The walk took the closed
+  record as a link to its parent and admitted the grandchild
+  ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
+- **Breaking:** `react` under a signed route refuses an unsigned `--runs`
+  directory. The
+  route's `--roster` and `--root-key` did not count as flags that judge
+  records, so without `--tenant` and `--project` it took a stop's subject
+  from an unsigned record.
+- `react` reads a finding's run again once it holds the stop list's lock,
+  and a run closed while it waited is counted as not stopping; a run it
+  cannot read then, or one naming no subject of its rule's scope, stops the
+  pass. It wrote the stop from what it read
+  before the wait.
+- A signed restore takes a backed-up root whose lock file stands without its
+  state as untrusted with an unknown read, as the plane does, and refuses,
+  before its first write, a surviving root's lock file the join would refuse.
+  It left such a root's live state as it was, and stamped floors and carried
+  closes before it met the lock
+  ([back up and restore](docs/guides/back-up-and-restore-a-plane.md)).
+- A restore under the directory authority judges the backup's stop list
+  against the configured route also when the live list begins with it, and
+  refuses one written under a route since replaced. It kept the old list,
+  which the next start refused.
+- Signed `/healthz` and `doctor` report a stop naming another tenant's or
+  project's run as unheld, not as unread, which made the reaction check
+  unknown.
+- A list of another version put in place of the one a plane accepted is
+  refused naming both versions and saying to put the accepted list back, or,
+  for a `2.0` list in place of a `3.0` one, to carry it with
+  `stops init --carry`. The changed header was refused without either
+  ([reaction under signed](docs/reference/reaction-signed.md)).
+- `stops lift` refuses, with nothing written, a lift that ends no stop of
+  the list as it stands under the writer's lock, such as one signed against
+  the list before another lift ended that stop.
+- A signed start refuses a stop list its own account may write, an access
+  control list among the ways, as it refuses the stops directory. Only the
+  directory was judged
+  ([set up signed operators](docs/guides/set-up-signed-operators.md)).
+- `state backup` makes its directories `0700` and its copies `0600` whatever
+  the umask, as the guide says. A umask that took the owner's bits made them
+  narrower.
+- `state restore` refuses, before its first write, a configuration where the
+  temporary name a missing floor directory is built under is, or holds, a
+  path the configuration names, the hold journal and the keys among them,
+  compared through links and without case, also where neither name exists
+  yet, so every refusal comes before the first write; the build removes there
+  only a directory a build of its own left.
+  Building the floor removed that path first, so a route floor named there
+  was built again from the backup's lower serial, and a hold journal named
+  there was lost.
+- **Breaking:** a signed carry takes the write bits off the list it carried
+  from before it writes the new list, giving them back when that write left
+  no new list in place, and `react` and `stops lift` refuse a list its owner may not
+  write. Run the carry as the old list's owner: under another account it
+  refuses before it writes anything. A 0.17 `react` left on the old list
+  fails to write; give the list its write bits back before 0.17 uses it
+  after a roll back. A stop appended to the old list after the carry reached
+  a plane still serving it and was missing from the new list, whose header
+  the plane's floor followed ([reaction under signed](docs/reference/reaction-signed.md),
+  [upgrade a plane from 0.17](docs/guides/upgrade-a-plane-from-0-17.md)).
 - `coverage` joins an `mcp_tool` path's observation only to a proposal the
   MCP adapter recorded. An enforcement API proposal with the same ids, tool
   and provider joined it too
@@ -331,6 +421,13 @@ verify one.
 
 ### Documentation
 
+- The landing page and the documentation pages share one layout: the same
+  header, footer and container at every width, every landing section opening
+  with the same heading block on one column split, and one rhythm on a phone.
+  A documentation table whose cells are sentences now reads as a list, one
+  item per row with each cell under its column's name; a compact table stays
+  a table, its code breaks after a slash, and one still too wide scrolls
+  inside its box.
 - Risk references map the 2026 OWASP Top 10 lists for Agentic Applications
   and LLM Applications to project controls and tests
   ([risk references](docs/reference/risks/owasp-agentic-top-10.md)). For
