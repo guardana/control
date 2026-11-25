@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -96,6 +97,7 @@ func checkedKeys(cfg *gatewayconfig.Config) string {
 	for _, f := range files {
 		keys = append(keys, f.key)
 	}
+	keys = slices.Compact(keys)
 	last := len(keys) - 1
 	return strings.Join(keys[:last], ", ") + " and " + keys[last]
 }

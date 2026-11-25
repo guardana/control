@@ -185,7 +185,7 @@ are read from the document's own directory.</p>
   &#34;cases&#34;: [
     {
       &#34;name&#34;: &#34;a resource outside the run&#34;,
-      &#34;run&#34;: {&#34;id&#34;: &#34;run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&#34;, &#34;tenant&#34;: &#34;t1&#34;, &#34;parent&#34;: &#34;&#34;, &#34;closed&#34;: true},
+      &#34;run&#34;: {&#34;id&#34;: &#34;run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&#34;, &#34;tenant&#34;: &#34;t1&#34;, &#34;project&#34;: &#34;orders&#34;, &#34;parent&#34;: &#34;&#34;, &#34;closed&#34;: true},
       &#34;tree&#34;: [],
       &#34;evidence&#34;: [{&#34;whole&#34;: true, &#34;events&#34;: [ ... ]}],
       &#34;expect&#34;: {
@@ -203,13 +203,19 @@ are read from the document's own directory.</p>
 the format does not have is refused:</p>
 <ul>
 <li><code>run</code> is the supervised run as its record would say: its id, tenant,
-parent (empty for a root) and whether it is closed. Rules that rest on what
-was not seen are checked only on a closed run.</li>
-<li><code>tree</code> lists the other runs of its tree, each after its parent, for a <code>0.2</code>
-procedure, only its children under <code>separate</code>; <code>[]</code> is the run alone.</li>
+project, parent (empty for a root) and whether it is closed. Rules that
+rest on what was not seen are checked only on a closed run. Its sources
+are taken to be of the run's project, and an event of the run naming
+another project fails the case as <code>refused:</code>, as <code>supervise</code> refuses it.</li>
+<li><code>tree</code> lists the other runs of its tree in the same form, each after its
+parent, for a <code>0.2</code> procedure, only its children under <code>separate</code>; <code>[]</code> is
+the run alone. A run of another tenant or project fails the case the same
+way.</li>
 <li><code>evidence</code> holds exports, each either <code>{&quot;path&quot;: &quot;&lt;export file&gt;&quot;}</code>, a file
 the gateway's trail export wrote, or <code>{&quot;whole&quot;: &lt;bool&gt;, &quot;events&quot;: [...]}</code>
-with the events as that export writes them.</li>
+with the events as that export writes them; an event whose
+<code>schemaVersion</code> is of another major, or not <code>MAJOR.MINOR</code>, is refused as
+the export reader refuses it.</li>
 <li><code>sources</code>, if given, are sources of an agent runtime's spans: <code>source_id</code>,
 <code>heartbeat_seconds</code>, <code>last_heard</code> (left out for a source never heard) and
 <code>observations</code>. <code>sources_not_read</code> names sources given and not found.</li>
@@ -238,10 +244,11 @@ the case's input:</p>
 <pre><code>FAIL a resource outside the run: finding RESOURCE_OUTSIDE_RUN SUSPECTED run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa [r1 r2]: verdict CONFIRMED, want SUSPECTED
 </code></pre>
 <h2 id="verify">Verify</h2>
-<p><code>procedure test</code> exits 0 when every case passed and 1 when any failed. A
-cases document it cannot read, a version other than <code>0.1</code>, a procedure the
-reader refuses, an export it cannot read, no case, or two cases of one name
-exit 2 with one line on stderr and nothing run.</p>
+<p><code>procedure test</code> exits 0 when every case passed and 1 when any failed, or
+when it cannot write its report. A cases document it cannot read, a version
+other than <code>0.1</code>, a procedure the reader refuses, an export or an inline
+event it cannot read, no case, or two cases of one name exit 2 with one line
+on stderr and nothing run.</p>
 <h2 id="roll-back">Roll back</h2>
 <p>Both commands only read. To undo a procedure change, restore the document you
 had and run its cases again; <code>supervise</code> records the digest of whichever you

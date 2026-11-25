@@ -75,7 +75,7 @@ are read from the document's own directory.
   "cases": [
     {
       "name": "a resource outside the run",
-      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "parent": "", "closed": true},
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "project": "orders", "parent": "", "closed": true},
       "tree": [],
       "evidence": [{"whole": true, "events": [ ... ]}],
       "expect": {
@@ -94,13 +94,19 @@ Every member is required except `sources` and `sources_not_read`, and a member
 the format does not have is refused:
 
 - `run` is the supervised run as its record would say: its id, tenant,
-  parent (empty for a root) and whether it is closed. Rules that rest on what
-  was not seen are checked only on a closed run.
-- `tree` lists the other runs of its tree, each after its parent, for a `0.2`
-  procedure, only its children under `separate`; `[]` is the run alone.
+  project, parent (empty for a root) and whether it is closed. Rules that
+  rest on what was not seen are checked only on a closed run. Its sources
+  are taken to be of the run's project, and an event of the run naming
+  another project fails the case as `refused:`, as `supervise` refuses it.
+- `tree` lists the other runs of its tree in the same form, each after its
+  parent, for a `0.2` procedure, only its children under `separate`; `[]` is
+  the run alone. A run of another tenant or project fails the case the same
+  way.
 - `evidence` holds exports, each either `{"path": "<export file>"}`, a file
   the gateway's trail export wrote, or `{"whole": <bool>, "events": [...]}`
-  with the events as that export writes them.
+  with the events as that export writes them; an event whose
+  `schemaVersion` is of another major, or not `MAJOR.MINOR`, is refused as
+  the export reader refuses it.
 - `sources`, if given, are sources of an agent runtime's spans: `source_id`,
   `heartbeat_seconds`, `last_heard` (left out for a source never heard) and
   `observations`. `sources_not_read` names sources given and not found.
@@ -137,10 +143,11 @@ FAIL a resource outside the run: finding RESOURCE_OUTSIDE_RUN SUSPECTED run-aaaa
 
 ## Verify
 
-`procedure test` exits 0 when every case passed and 1 when any failed. A
-cases document it cannot read, a version other than `0.1`, a procedure the
-reader refuses, an export it cannot read, no case, or two cases of one name
-exit 2 with one line on stderr and nothing run.
+`procedure test` exits 0 when every case passed and 1 when any failed, or
+when it cannot write its report. A cases document it cannot read, a version
+other than `0.1`, a procedure the reader refuses, an export or an inline
+event it cannot read, no case, or two cases of one name exit 2 with one line
+on stderr and nothing run.
 
 ## Roll back
 

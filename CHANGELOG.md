@@ -31,6 +31,19 @@ verify one.
   step, and refuse to replace it where the platform or file system cannot,
   as outside Linux and macOS or on some network file systems. A first
   output, where nothing stands yet, is written as before.
+- **Breaking:** a `procedure test` cases document states `project` in `run`
+  and in each run of `tree`; a document without it is refused with exit 2,
+  naming the member. Add the project the run's record names. The format
+  stays `0.1`, `experimental`
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
+- **Breaking:** `notify` runs the program with only `PATH`, `HOME`, `LANG`,
+  `LC_ALL`, `TMPDIR` and `USER` of its own environment, and with each
+  variable a new, repeatable `--env <name>` names; a name not set is refused
+  with exit 2 before any program runs, and no value is printed. The program
+  got the whole environment, a credential included. A program that reads a
+  token, a proxy or a certificate path from its environment no longer gets
+  it, and may still exit 0: name each variable it needs with `--env`
+  ([supervision](docs/reference/supervision.md#notify)).
 
 ### Added
 
@@ -56,6 +69,19 @@ verify one.
 
 ### Fixed
 
+- `policy test`, `policy explain` and `policy compare` refuse a case whose
+  `authorized_args` is not valid UTF-8 or holds an unpaired surrogate escape
+  such as `\ud800`, naming the member. The case reader put U+FFFD in place
+  of such bytes, so the kernel decided other arguments than the case wrote,
+  and a case could pass `ALLOW` for bytes the kernel refuses
+  ([policy format](docs/reference/policy-format.md#a-test-case)).
+- A `procedure test` case states the project its run's record names, as
+  `project` in `run` and in each run of `tree`, and is judged as `supervise`
+  judges that run: events or a run of another project fail the case as
+  `refused:`, and its sources are of the run's project. The case took the
+  project from its events, so a case passed with a finding that `supervise`
+  would refuse to make for a run recorded under another project
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
 - `supervise` lists a step's requests, and a finding cites and keeps its
   references, in the order of the plane's times of the proposals, a tie by
   request id. It used the order in which an export first held each request,
@@ -137,6 +163,78 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- **Breaking:** a signed plane refuses to start, and `doctor` fails, when
+  `records/` holds more than the 65,536 records a start reads to carry their
+  closes; `guardana-control runs prune` archives the expired trees to bring
+  it under. The start logged the cut and served, so the open record of a run
+  closed past the cut, put back, was taken
+  ([runs](docs/reference/runs.md),
+  [ADR-0076](docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)).
+- A signed child's first call beside a root whose state file is gone and
+  whose lock file is not leaves no `.seen`. The mark was made before the
+  call was refused, so once the root's state was put back the child ran
+  after its parent's close was carried.
+- A signed child's first call whose ancestor walk reads a closed ancestor
+  carries that close and is refused as `closed`. The walk took the closed
+  record as a link to its parent and admitted the grandchild
+  ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
+- **Breaking:** `react` under a signed route refuses an unsigned `--runs`
+  directory. The
+  route's `--roster` and `--root-key` did not count as flags that judge
+  records, so without `--tenant` and `--project` it took a stop's subject
+  from an unsigned record.
+- `react` reads a finding's run again once it holds the stop list's lock,
+  and a run closed while it waited is counted as not stopping; a run it
+  cannot read then, or one naming no subject of its rule's scope, stops the
+  pass. It wrote the stop from what it read
+  before the wait.
+- A signed restore takes a backed-up root whose lock file stands without its
+  state as untrusted with an unknown read, as the plane does, and refuses,
+  before its first write, a surviving root's lock file the join would refuse.
+  It left such a root's live state as it was, and stamped floors and carried
+  closes before it met the lock
+  ([back up and restore](docs/guides/back-up-and-restore-a-plane.md)).
+- A restore under the directory authority judges the backup's stop list
+  against the configured route also when the live list begins with it, and
+  refuses one written under a route since replaced. It kept the old list,
+  which the next start refused.
+- Signed `/healthz` and `doctor` report a stop naming another tenant's or
+  project's run as unheld, not as unread, which made the reaction check
+  unknown.
+- A list of another version put in place of the one a plane accepted is
+  refused naming both versions and saying to put the accepted list back, or,
+  for a `2.0` list in place of a `3.0` one, to carry it with
+  `stops init --carry`. The changed header was refused without either
+  ([reaction under signed](docs/reference/reaction-signed.md)).
+- `stops lift` refuses, with nothing written, a lift that ends no stop of
+  the list as it stands under the writer's lock, such as one signed against
+  the list before another lift ended that stop.
+- A signed start refuses a stop list its own account may write, an access
+  control list among the ways, as it refuses the stops directory. Only the
+  directory was judged
+  ([set up signed operators](docs/guides/set-up-signed-operators.md)).
+- `state backup` makes its directories `0700` and its copies `0600` whatever
+  the umask, as the guide says. A umask that took the owner's bits made them
+  narrower.
+- `state restore` refuses, before its first write, a configuration where the
+  temporary name a missing floor directory is built under is, or holds, a
+  path the configuration names, the hold journal and the keys among them,
+  compared through links and without case, also where neither name exists
+  yet, so every refusal comes before the first write; the build removes there
+  only a directory a build of its own left.
+  Building the floor removed that path first, so a route floor named there
+  was built again from the backup's lower serial, and a hold journal named
+  there was lost.
+- **Breaking:** a signed carry takes the write bits off the list it carried
+  from before it writes the new list, giving them back when that write left
+  no new list in place, and `react` and `stops lift` refuse a list its owner may not
+  write. Run the carry as the old list's owner: under another account it
+  refuses before it writes anything. A 0.17 `react` left on the old list
+  fails to write; give the list its write bits back before 0.17 uses it
+  after a roll back. A stop appended to the old list after the carry reached
+  a plane still serving it and was missing from the new list, whose header
+  the plane's floor followed ([reaction under signed](docs/reference/reaction-signed.md),
+  [upgrade a plane from 0.17](docs/guides/upgrade-a-plane-from-0-17.md)).
 - `coverage` joins an `mcp_tool` path's observation only to a proposal the
   MCP adapter recorded. An enforcement API proposal with the same ids, tool
   and provider joined it too
@@ -328,6 +426,106 @@ verify one.
   that a sticky directory on a path, such as `/tmp`, passes the signed start
   check although the plane's account may write it, as the check lets it; the
   entry the path ends at never passes that way.
+- `procedure test` refuses an inline event whose `schemaVersion` is of
+  another major or not `MAJOR.MINOR`, as the export reader refuses it; such
+  an event was judged as if this build could read it.
+- `procedure test` exits 1 when it cannot write its report, as the exit
+  status table says for a failed case; it exited 2, the status of input
+  refused before any case ran.
+- `notify` counts an alert whose line could not be written to the program,
+  its standard input closed first, as a failed delivery; it marked the alert
+  delivered when the program then exited 0.
+- `notify` exits 1 on an interrupt while the log held only delivered alerts
+  and informs, and when the log ends in a write no report closed and no
+  writer holds, naming its bytes; both exited 0.
+- `run` exits 1 when the spool failed to close a segment it retired before
+  the stop; the failure was logged and the run exited 0.
+- `spool drain` creates the drained file and syncs it through the directory
+  it judged, so a link in the path retargeted at the spool after the check
+  cannot put the file in the spool.
+- `run` returns the error of a listener that failed on its own while the
+  stop was under way; it was dropped, and the run could exit 0.
+- `dev` refuses a configuration that sets `health.socket`; it started the
+  plane with that socket, outside its state directory and off the loopback
+  listeners its page names.
+- `console --until-stdin-closes` exits 1 when its standard input fails to
+  read, naming the failure; it stopped as at the input's end and exited 0.
+- The evidence-report example refuses a version whose major has a leading
+  zero, `01.0`, as the contracts do; it read it as major 1.
+
+- `make quality`, as CI and `scripts/gate-commit.sh` start it, reads the
+  `Makefile` by name, and the `Makefile` refuses a `GNUmakefile` or a
+  `makefile` beside it whatever the goal. make reads either one first when no
+  makefile is named, so a committed one could replace every check with a
+  recipe that prints the pass line. The nightly fuzz run, the race run and
+  the external MCP client job name the `Makefile` too.
+- `scripts/gate-commit.sh` refuses a commit holding a symbolic link that is
+  absolute or has a `..` component. The archive check compared a link's text,
+  so a test could read a fixture through it from outside the commit, and the
+  stamp rested on bytes the commit does not hold.
+- The pre-push hook and `scripts/gate-commit.sh` ignore a local grafts file,
+  a local shallow file and a local commit-graph, single or a chain, also when
+  `git -c` turns the graph on, as they ignore replace refs, and keep git's
+  advice about grafts out of their output. Each could hide an unstamped
+  commit from the hook that the remote would still receive. Both still trust
+  the local objects and the pusher's command line: they stop a mistake, not a
+  writer of `.git`.
+- The release checks the gate again right before it tags the image and right
+  before it publishes. A `main` that moved past the commit after the first
+  check stops the release at the next of those steps; what the earlier step
+  published stays. The upload of the client to the package index first checks
+  that the released commit's own CI and Security push runs on `main` passed,
+  so a re-run of it still works once `main` has moved on.
+- Publish names the release's tag in the request that publishes the draft,
+  and reads the release back under that tag. A writer who moved the draft to
+  another tag could have it published there while the job reported the tag it
+  was started for.
+- `scripts/scan-binaries.sh` refuses an archive without the binary of each
+  command under `cmd/` where goreleaser puts it. Any one Go binary satisfied
+  it, so a product archive without the command-line binary passed the
+  release's verification.
+- `make test` and `make test-race` refuse a module whose `./...` leaves out a
+  package that holds Go files, as a `go.mod` `ignore` directive does, or a
+  package the module's code imports, as one under `testdata` or a directory
+  whose name starts with `_` is, and a module that builds code from a vendor
+  directory, from a local `replace` target that is not one of the
+  repository's modules, or, through a replace of one of them, from its
+  `testdata` or a directory of it starting with `_`. That code's tests did not
+  run, and the reporter, which sees only the packages that ran, could not
+  tell. Not covered: a package only
+  a test file, only a program under `//go:build ignore`, or only a file for
+  another platform than the run's imports.
+- `scripts/two-accounts.sh` builds each package's test binary into a file of
+  its own. Two import paths that differ only by a `/` and a `_` shared one,
+  so a package with no test file in the tagged build ran the other's binary
+  under its own name.
+- The check that `scripts/expected-runs.txt` names every test of a
+  `twoaccounts` file reads the build tags as the job's build sets them:
+  release tags such as `go1.27`, `cgo`, and the toolchain's experiment tags.
+  A file under `twoaccounts && go1.27` or `twoaccounts && cgo` counted as in
+  neither build, so its tests could run in no job unnoticed.
+- `scripts/check-runs.go` counts a test as passed only after that test's
+  `run` event. A pass with no start in the stream was taken.
+- `scripts/fuzz-smoke.sh` refuses a line of a package's fuzz listing that no
+  file the build takes declares, such as one a `TestMain` prints before the
+  listing, and counts a target as run only when the fuzzing engine reports
+  executions in a verbose run that ran that target alone under its own name
+  for at least nine tenths of the time asked for, which must be whole
+  seconds, minutes or hours. It counted such a line as a target, and fuzzing
+  it, a target whose `TestMain` exits before fuzzing, one whose `TestMain`
+  points the engine at another target, or one whose `TestMain` cuts the fuzz
+  time, ran nothing or almost nothing. A `TestMain` that prints the engine's
+  report, the names and the time itself still passes.
+- The dependency rule refuses `time.Timer` and `time.Ticker` in the guarded
+  trees and the trees they reach, by name and through forbidigo. Their
+  `Reset` schedules from the clock, so a timer a caller handed in let such a
+  package read it.
+- The nightly, CI and Security workflows keep one concurrency group per
+  event, so a manual or scheduled run no longer replaces a run queued behind
+  another: a scheduled night whose red then went unreported, or a push to
+  `main` whose result the release then could not find.
+- The port inventory check refuses a doctor key in `scripts/ports.txt` that
+  the gateway's doctor does not report under. Any key but `none` passed.
 
 ### Documentation
 
