@@ -256,6 +256,80 @@ func TestConcurrentRetriesOfALapsingApprovalRunAtMostOnce(t *testing.T) {
 	}
 }
 
+// TestARetryThatReadsTheLapseAfterAnotherSpentIsToldItWasUsed: a retry reads
+// the approval approved and waits on the authority while another retry spends
+// it and is blocked as the clock reaches the expiry. The first retry's last
+// reading before its own spend is past the expiry, but the ledger marks the
+// approval spent, so that retry is refused as already used on a trail of its
+// own, and nothing is spent or run again.
+func TestARetryThatReadsTheLapseAfterAnotherSpentIsToldItWasUsed(t *testing.T) {
+	var hook *answersHook
+	r := lapsingUnder(t, snapshot(t, approveRefunds), withAnswersHook(&hook))
+	hook.keep = r.harness.store
+	r.sink.hook(kindApprovalDecided, func() { r.clock.set(base().Add(lapseTTL)) })
+	answered, resume := make(chan struct{}), make(chan struct{})
+	hook.after = func() {
+		close(answered)
+		<-resume
+	}
+	late := make(chan gateway.Disposition, 1)
+	go func() { late <- r.admit(retry(t, "req-late"), refundArgs()) }()
+	<-answered
+	spender := r.admit(retry(t, "req-spender"), refundArgs())
+	close(resume)
+	d := <-late
+
+	if got := spender.Decision.GetReasonCodes(); spender.Action != core.Block || !slices.Equal(got, []string{codeApprovalExpired}) {
+		t.Fatalf("the retry that spent: Action = %d, codes %v; want a block naming only %s", spender.Action, got, codeApprovalExpired)
+	}
+	expectBlock(t, d, verdictDeny, codeApprovalAlreadyUsed, gateway.PDPType)
+	if got := d.Decision.GetReasonCodes(); !slices.Equal(got, []string{codeApprovalAlreadyUsed}) {
+		t.Errorf("the late retry names %v, want only %s", got, codeApprovalAlreadyUsed)
+	}
+	expectKinds(t, kindsOf(r.trailOf("req-late")), []controlv1.EventKind{kindProposed, kindDecided, kindBlocked})
+	expectOneChain(t, r.harness, []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalDecided, kindBlocked})
+	s := r.p.Stats()
+	if s.Executed != 0 || s.Blocks[codeApprovalExpired] != 1 || s.Blocks[codeApprovalAlreadyUsed] != 1 || s.Blocks[codeEvidenceUnavailable] != 0 {
+		t.Errorf("Stats = %+v; want nothing run, one APPROVAL_EXPIRED and one APPROVAL_ALREADY_USED block", s)
+	}
+	if got := r.spent(); got != 1 {
+		t.Errorf("Spend was called %d time(s); want once, by the retry that spent", got)
+	}
+}
+
+// TestARefusedSpendTheLedgerCannotReadClosesNothing: an approved answer the
+// field checks refuse is closed only once the ledger says it is unspent. A
+// ledger that cannot be read blocks the retry on its own trail, spends
+// nothing and leaves the hold standing; read again, the next retry closes the
+// held trail on the refusal.
+func TestARefusedSpendTheLedgerCannotReadClosesNothing(t *testing.T) {
+	r := lapsing(t)
+	r.store.mu.Lock()
+	r.store.answer = func(a *controlv1.Approval) { a.ActionDigest = "sha256:" + digits }
+	r.store.mu.Unlock()
+	r.ledger.mu.Lock()
+	r.ledger.lookupErr = errLedger
+	r.ledger.mu.Unlock()
+
+	d := r.admit(retry(t, "req-2"), refundArgs())
+	expectBlock(t, d, verdictIndeterminate, codeEvidenceUnavailable, gateway.PDPType)
+	expectKinds(t, kindsOf(r.trailOf("req-2")), []controlv1.EventKind{kindProposed, kindDecided, kindBlocked})
+	expectOneChain(t, r.harness, []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested})
+	if s := r.p.Stats(); s.Executed != 0 || s.Held != 1 || s.Blocks[codeApprovalDigestMismatch] != 0 {
+		t.Errorf("Stats = %+v; want nothing run or closed and the hold standing", s)
+	}
+
+	r.ledger.mu.Lock()
+	r.ledger.lookupErr = nil
+	r.ledger.mu.Unlock()
+	d = r.admit(retry(t, "req-3"), refundArgs())
+	expectBlock(t, d, verdictDeny, codeApprovalDigestMismatch, gateway.PDPType)
+	expectOneChain(t, r.harness, []controlv1.EventKind{kindProposed, kindDecided, kindApprovalRequested, kindApprovalExpired, kindBlocked})
+	if got := r.spent(); got != 0 {
+		t.Errorf("Spend was called %d time(s); want never", got)
+	}
+}
+
 // waiting reports whether d holds the retry: under a new approval of its own,
 // or on the held approval still pending as this retry read it.
 func waiting(d gateway.Disposition, heldApprovalID string, codes []string) bool {

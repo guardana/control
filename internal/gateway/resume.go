@@ -89,38 +89,43 @@ func (c *call) try(own *heldRequest, binding approval.Binding, r *resumption) (D
 		r.waiting = firstOf(r.waiting, own)
 		return d, false
 	case approval.StandingExpired, approval.StandingRejected:
-		return c.closeUnlessSpent(own, binding, a, standing, r)
+		return c.closeUnlessSpent(own, binding, r, func() Disposition { return c.closeAnswered(own, a, standing) })
 	default:
 		r.waiting = firstOf(r.waiting, own)
 		return d, false
 	}
 }
 
-// closeUnlessSpent closes the held trail on an expired or rejected answer,
-// unless the ledger marks the approval spent: that is proof of an execution,
-// whatever the record reads now, so the retry is told it was already used. A
-// ledger that cannot be read blocks the call with nothing closed.
-func (c *call) closeUnlessSpent(own *heldRequest, binding approval.Binding, a *controlv1.Approval, standing approval.Standing, r *resumption) (Disposition, bool) {
+// closeUnlessSpent closes the held trail with closing, unless the ledger
+// marks the approval spent: that is proof of an execution, whatever the
+// record reads now, so the retry is told it was already used. A ledger that
+// cannot be read blocks the call with nothing closed.
+func (c *call) closeUnlessSpent(own *heldRequest, binding approval.Binding, r *resumption, closing func() Disposition) (Disposition, bool) {
 	spent, readable := c.spentAlready(own, binding)
-	var d Disposition
 	switch {
 	case !readable:
 		c.decide(verdictIndeterminate, codeEvidenceUnavailable)
 		return c.freshBlock(), true
 	case spent:
 		r.consumed = true
-		return d, false
-	case !readsApprovalVersion(a.GetSchemaVersion()):
-		d = c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, expiredEvent(own.approval))
-	case standing == approval.StandingExpired:
-		d = c.resumeBlocked(own, verdictDeny, codeApprovalExpired, expiredEvent(own.approval))
-	default:
-		d = c.resumeRejected(own, a)
+		return Disposition{}, false
 	}
+	d := closing()
 	if r.concluded == nil {
 		r.concluded = &d
 	}
 	return d, false
+}
+
+// closeAnswered closes the held trail on an expired or rejected answer.
+func (c *call) closeAnswered(own *heldRequest, a *controlv1.Approval, standing approval.Standing) Disposition {
+	switch {
+	case !readsApprovalVersion(a.GetSchemaVersion()):
+		return c.resumeBlocked(own, verdictIndeterminate, codeEvidenceUnavailable, expiredEvent(own.approval))
+	case standing == approval.StandingExpired:
+		return c.resumeBlocked(own, verdictDeny, codeApprovalExpired, expiredEvent(own.approval))
+	}
+	return c.resumeRejected(own, a)
 }
 
 // spentAlready reports whether the ledger marks own's request spent under
@@ -135,9 +140,11 @@ func (c *call) spentAlready(own *heldRequest, binding approval.Binding) (spent, 
 
 // spend checks an approved answer, spends it in the ledger and resumes the
 // held request. An answer the checks refuse closes the window with the plane's
-// own approval, expired, and is never spent. A ledger that says another call
-// spent it notes that in r; one that says the plane settled it leaves the hold
-// waiting; one that cannot be written blocks the call with nothing run.
+// own approval, expired, and is never spent, unless the ledger marks it spent
+// already: the last reading can be past an expiry another retry spent the
+// approval before. A ledger that says another call spent it notes that in r;
+// one that says the plane settled it leaves the hold waiting; one that cannot
+// be written blocks the call with nothing run.
 func (c *call) spend(own *heldRequest, binding approval.Binding, a *controlv1.Approval, proof string, r *resumption) (Disposition, bool) {
 	// The authority's read can outlast the checks made before it, so they are
 	// made again at the last reading before the approval is spent.
@@ -145,11 +152,9 @@ func (c *call) spend(own *heldRequest, binding approval.Binding, a *controlv1.Ap
 		return c.freshBlock(), true
 	}
 	if verdict, code, refused := approvalFields(own.approval, a, own.expires, c.now, c.p.cfg.AuthorityKind); refused {
-		d := c.resumeBlocked(own, verdict, code, expiredEvent(own.approval))
-		if r.concluded == nil {
-			r.concluded = &d
-		}
-		return d, false
+		return c.closeUnlessSpent(own, binding, r, func() Disposition {
+			return c.resumeBlocked(own, verdict, code, expiredEvent(own.approval))
+		})
 	}
 	res, err := c.p.cfg.Ledger.Spend(c.ctx, binding,
 		own.approval.GetRequestId(), own.approval.GetApprovalId(), proof, c.now)
