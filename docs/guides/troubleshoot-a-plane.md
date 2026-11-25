@@ -98,7 +98,7 @@ restart ([reaction](../reference/reaction.md)).
 
 **Symptom.** Under `approvals.authority: signed`, `run` exits naming a key and
 `under the signed authority the plane's own account may not be able to change
-it`, or naming the environment.
+it`, or naming the environment, `approvals.inbox_dir` or `records/`.
 
 **Cause.** A signed plane refuses to start when its own account owns or may
 write the configuration, the roster, the root key, the pause file, the

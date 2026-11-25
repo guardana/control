@@ -110,10 +110,10 @@ No version above changed. 0.19 refuses some content 0.18 took
 
 - Route: no route may name `DEADLINE_EXCEEDED`,
   `DENIED_ACTION_RETRIED_ARGUMENTS` or `DENIED_ACTION_RETRIED_RESOURCE`, at
-  `1` or `2`, but `--carry-route` and `stops lift`. 0.18 reads a route 0.19
-  signs.
+  `1` or `2`; `--carry-route` and `stops lift` take them at `1` alone. 0.18
+  reads a route 0.19 signs.
 - Stop list: a carry keeps a stop of those rules at `1` only within what the
-  new route grants. 0.18 refuses such a line, and its plane every call.
+  new route grants. 0.18 refuses such a line and will not start on that list.
 - Finding records: those rules are at `2`, `SUSPECTED` at most, so the same
   evidence gives a new finding id. 0.18 reads them.
 - Procedure test cases: `project` is required in `run` and each run of

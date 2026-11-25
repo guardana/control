@@ -141,8 +141,10 @@ the command that replaces it, and raises no floor while it does
 <p>A 0.17 plane need not run 0.18 on its way to 0.19: take these steps with the
 0.19 binaries, leaving <code>DEADLINE_EXCEEDED</code>,
 <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code> out of
-the route step 2 signs, then <a href="/docs/guides/upgrade-a-plane-from-0-18">upgrade a plane from 0.18</a>,
-whose route step a signed plane has then taken.</p>
+the route step 2 signs, then <a href="/docs/guides/upgrade-a-plane-from-0-18">upgrade a plane from 0.18</a>
+before the plane starts: 0.19 will not start on a route naming those rules or
+a configuration block written twice. A signed plane has then taken its route
+step.</p>
 <h2 id="every-plane">Every plane</h2>
 <p>Under <code>directory</code> and <code>memory</code> the plane reads the files 0.17 wrote: replace
 both binaries and start it. Three things it answers differ.</p>

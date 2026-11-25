@@ -136,7 +136,7 @@
 (<a href="/docs/reference/versions#what-019-changed">format versions</a>), but 0.19
 refuses some routes, documents and settings 0.18 took. Every plane follows
 the first part, in its order; a plane under <code>approvals.authority: signed</code>
-also follows the second. A plane still on 0.17 takes
+also follows the second before it starts. A plane still on 0.17 takes
 <a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane from 0.17</a> with the 0.19
 binaries first, as that page says.</p>
 <h2 id="prerequisites">Prerequisites</h2>
@@ -144,9 +144,8 @@ binaries first, as that page says.</p>
 <li>The plane is stopped.</li>
 <li>Copies of its configuration, route and stop list directory are kept aside
 for a roll back.</li>
-<li>The paths below are examples: <code>/srv/plane</code> holds the route and the stop
-lists, <code>route.json</code> is the route document the route was signed from, and
-<code>orders-eu-1</code> is a signed plane's <code>plane_id</code>.</li>
+<li>The paths below are examples; <code>route.json</code> is the document the route was
+signed from.</li>
 </ul>
 <h2 id="every-plane">Every plane</h2>
 <h3 id="1-ask-doctor">1. Ask doctor</h3>
@@ -162,9 +161,10 @@ once, and a path as nested blocks;</li>
 <li>a route naming <code>DEADLINE_EXCEEDED</code>, <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> or
 <code>DENIED_ACTION_RETRIED_RESOURCE</code>, at either version: step 2.</li>
 </ul>
+<p>Under <code>signed</code> it also fails, and may fail first, on what the second part
+fixes.</p>
 <h3 id="2-take-the-deadline-and-retry-rules-out-of-the-route">2. Take the deadline and retry rules out of the route</h3>
-<p>Each of these three rules compares two events' times, and nothing in an
-event names the plane whose clock stamped it, so their findings are
+<p>These three rules compare two events' times, so their findings are
 <code>SUSPECTED</code> at most and stop nothing
 (<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>).
 Skip this step when the route names none of them. A signed plane takes the
@@ -187,13 +187,14 @@ guardana-control stops init --route /srv/plane/route-019.json --public-key /srv/
 </code></pre>
 <p>The carry keeps every stop no lift ended. A stop one of the three rules
 wrote is kept only where a rule of the new route still stops its procedure,
-and for no longer than that rule allows. A carry that cannot keep a stop is
+and only when its span is within that rule's lifetime. A carry that cannot keep a stop is
 refused, naming the stop and the <code>stops lift</code> that ends
 it: run that lift on the old list with the old route, which <code>stops lift</code>
-takes for that alone, then run 2c again. Run <code>react</code> with <code>--route /srv/plane/route-019.json --stops /srv/plane/stops-019</code> from now on; no plane
-reads the old list.</p>
+takes for that alone, then run 2c again. Point <code>react</code> at the new route and
+list; no plane reads the old one.</p>
 <p>The same evidence now gives these rules' findings rule version <code>2</code> and a new
-finding id, so <code>notify</code> delivers each once more as a new record.</p>
+finding id, so <code>notify</code> delivers each alert among them once more, as a new
+record.</p>
 <h3 id="3-add-the-project-to-each-procedure-test-case">3. Add the project to each procedure test case</h3>
 <p>A <code>procedure test</code> cases document states <code>project</code> in <code>run</code> and in each run
 of <code>tree</code>: the project the run's record names. A document without it is
@@ -206,7 +207,7 @@ refused with exit 2, naming the member
 <h3 id="4-name-what-notifys-program-reads">4. Name what notify's program reads</h3>
 <p><code>notify</code> gives the program only <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code>
 and <code>USER</code> of its own environment. Name each other variable the program
-needs, a token, a proxy or a certificate path among them, with <code>--env</code>; a
+needs with <code>--env</code>; a
 name not set is refused with exit 2 before any program runs
 (<a href="/docs/reference/supervision#notify">supervision</a>). A program that loses a
 variable may still exit 0, so check that the alert arrived.</p>
@@ -220,16 +221,22 @@ others may write without the sticky bit
 (<a href="/docs/guides/watch-a-plane-without-a-collector">watch a plane without a collector</a>).
 Give <code>--dir</code> the directory's own path, under a parent the collector's account
 or root owns.</p>
-<p><code>collect</code> reads <code>--listen</code> as a URL: a socket path holding <code>#</code>, <code>?</code>, <code>%</code> or a
-space is given escaped, as <code>collect</code> prints it in <code>export.endpoint</code>.</p>
+<p><code>collect</code> reads <code>--listen</code> as a URL: a socket path holding <code>#</code>, <code>?</code> or <code>%</code> is
+given escaped, as <code>collect</code> prints it in <code>export.endpoint</code>.</p>
 <h3 id="6-replace-signed-outputs-on-linux-or-macos">6. Replace signed outputs on Linux or macOS</h3>
 <p><code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>, <code>policy renew</code>,
 <code>supervise --view</code> and the signed pause writers replace an existing output by
 swapping two names in one step. Outside Linux and macOS, or on a file system
 that cannot swap, such as some network file systems, they refuse to replace
-it, with nothing written; a first output is written as before. Keep those
+it; a first output is written as before. Keep those
 files on a local file system of Linux or macOS.</p>
-<p>Then start the plane.</p>
+<h3 id="7-send-a-result-hash-the-plane-takes">7. Send a result hash the plane takes</h3>
+<p>A plane serving the enforcement API refuses a <code>complete</code> whose <code>resultHash</code>
+is not <code>sha256:</code> and 64 lower-case hex digits, as malformed; send that form
+or none. 0.19's Go and Python clients check it before sending; 0.18's Python
+client did not.</p>
+<p>A plane not under <code>signed</code> then starts; a signed plane starts after the
+second part.</p>
 <h2 id="a-signed-plane">A signed plane</h2>
 <h3 id="1-the-route-and-the-stop-list">1. The route and the stop list</h3>
 <p>Where the route names one of the three rules, sign it again and carry the
@@ -257,10 +264,9 @@ rm -r /srv/plane/stopsfloor-copy
 <p>The carry takes the write bits off the old list before it writes the new
 one, so a <code>react</code> left on it fails rather than append a stop no plane reads.
 Under another account than the list's owner it refuses before it writes
-anything. A kept stop of <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> or
-<code>_RESOURCE</code> that stopped an agent or a principal stays only where a rule of
-the new route stops that procedure at that scope; <code>REPEATED_DENIAL</code> alone may
-now stop one (<a href="/docs/reference/reaction-signed">reaction under signed</a>). Point
+anything. A kept retry stop of an agent or a principal needs a
+<code>REPEATED_DENIAL</code> rule of its procedure at that scope
+(<a href="/docs/reference/reaction-signed">reaction under signed</a>). Point
 <code>reaction.route</code> and <code>reaction.stops</code> at the new files, and <code>react</code> too.</p>
 <h3 id="2-the-runs-directory">2. The runs directory</h3>
 <p>A signed plane refuses to start, and <code>doctor</code> fails, while <code>records/</code> holds
@@ -277,14 +283,13 @@ at start, in <code>doctor</code> and at every read: <code>chown</code> it to the
 the operators' group kept, mode <code>1770</code>
 (<a href="/docs/guides/set-up-signed-operators#which-account-owns-what">which account owns what</a>).
 It also refuses a stop list its own account may write through an access
-control list, and an export header that a variable sets with its hyphens
-spelled as they are, such as <code>GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT</code>, as
-it refused the <code>_</code> spelling: put the header under <code>export.headers</code> in the
-configuration, which no other account should read when it holds a credential.</p>
+control list (remove that entry), and an export header that a variable sets with its hyphens
+spelled as they are, such as <code>GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT</code>: put the header under
+<code>export.headers</code> in the configuration, which no other account should read.</p>
+<p>Then start the plane.</p>
 <h2 id="verify">Verify</h2>
 <ul>
-<li><code>doctor</code> passes every check, and names who signed the route and the list
-under <code>signed</code>.</li>
+<li><code>doctor</code> passes every check.</li>
 <li><code>stops list</code> on the new directory shows each kept stop and its rule; lift
 any you do not keep.</li>
 <li><code>procedure test</code> passes each cases document.</li>
@@ -292,17 +297,16 @@ any you do not keep.</li>
 <h2 id="roll-back">Roll back</h2>
 <p>Stop the plane and start the 0.18 binaries. 0.18 reads the route 0.19
 signed and the list it carried, unless that list keeps a stop of one of the
-three rules: 0.18 refuses such a line, and the plane then refuses every call
-<code>STOP_STATE_UNAVAILABLE</code>. In that case point <code>reaction.route</code> and
+three rules: 0.18 refuses such a line and will not start on that list. In
+that case point <code>reaction.route</code> and
 <code>reaction.stops</code> back at the files you kept. The route floor holds the new
 route's serial, so make a new one with <code>policy state init --kind route --route-id &lt;route_id&gt;</code> in a new directory and name it in
 <code>reaction.floor_dir</code>. Under <code>signed</code> the stop list floor holds the carried
 list's serial as well: make a new floor with <code>stops floor init --tenant &lt;tenant&gt; --project &lt;project&gt;</code> in a new directory and name it in
-<code>reaction.stops_floor_dir</code>; a floor holding no serial takes the old list. The
-carry left that list without its write bits: give them back as its owner
+<code>reaction.stops_floor_dir</code>; a floor holding no serial takes the old list. A
+signed carry left that list without its write bits: give them back as its owner
 with <code>chmod u+w</code> before 0.18's <code>react</code> writes to it.</p>
-<p>0.18 refuses <code>project</code> in a cases document and <code>notify --env</code>: remove both.
-A route 0.18 signs may name the three rules again.</p>
+<p>0.18 refuses <code>project</code> in a cases document and <code>notify --env</code>: remove both.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/upgrade-a-plane-from-0-18.md">docs/guides/upgrade-a-plane-from-0-18.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.18.0, and <a href="https://github.com/guardana/control/tree/v0.18.0/docs">its documentation</a> is in its tag.</p>
 </main>
 <nav class="side" aria-label="Documentation">

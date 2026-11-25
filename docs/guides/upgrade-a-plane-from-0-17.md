@@ -19,8 +19,10 @@ the command that replaces it, and raises no floor while it does
 A 0.17 plane need not run 0.18 on its way to 0.19: take these steps with the
 0.19 binaries, leaving `DEADLINE_EXCEEDED`,
 `DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE` out of
-the route step 2 signs, then [upgrade a plane from 0.18](upgrade-a-plane-from-0-18.md),
-whose route step a signed plane has then taken.
+the route step 2 signs, then [upgrade a plane from 0.18](upgrade-a-plane-from-0-18.md)
+before the plane starts: 0.19 will not start on a route naming those rules or
+a configuration block written twice. A signed plane has then taken its route
+step.
 
 ## Every plane
 

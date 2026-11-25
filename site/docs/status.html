@@ -691,7 +691,13 @@ key), <a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>. <code>poli
 <code>policy sign</code> write them and the gateway parses <code>policy.public_key</code> through the
 same package.</p>
 <p>Unix-like systems only; the approvals store, the hold journal and the spool
-carry their own file code.</p>
+carry their own file code. <code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>, <code>policy renew</code>, <code>supervise --view</code> and the signed pause writers replace
+an existing output only while it is the file they judged (inode, type, mode,
+size and times), under a lock of that file, by exchanging two names in one
+step (<code>internal/files/judged.go</code>); outside Linux and macOS, or on a file system
+that cannot exchange, they refuse to replace it. The lock binds this
+program's writers alone, and any account that can read the file can hold it
+until the write gives up.</p>
 <h3 id="policy-matcher">policy-matcher</h3>
 <p><code>internal/policy/rules/</code> parses <code>agent-policy/v1alpha1</code> strictly,
 <code>internal/policy/bundle/</code> signs and verifies bundle bytes (Ed25519 over the DSSE
@@ -714,7 +720,9 @@ operator's, and the gateway binary holds neither
 commands use it (<code>policy renew</code>, <code>policy state init</code> and <code>reset</code>), and so does
 every plane, through <code>policy.state_dir</code>. A floor protects only while its
 directory outlives the plane, and an account that can write the directory can
-lower it.</p>
+lower it. <code>Init</code> leaves a new floor directory <code>0700</code> under any umask that
+keeps the owner's read bit, and under one that takes it fails and leaves
+none.</p>
 <h3 id="policy-refresh">policy-refresh</h3>
 <p><code>internal/policywatch/</code>, wired by <code>cmd/guardana-gateway/planepolicy.go</code>,
 <a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>. At
@@ -1263,8 +1271,9 @@ start a new list across a restart, except under <code>signed</code>, where the s
 directory and the route are refused when that account may write them and every
 list chains to the floor and extends the part of it the plane accepted, a floor
 that account can still lower, after which a list the stop writers cut back is
-taken; <code>react</code>'s own lines are signed by no operator, and the checks read mode
-bits, not darwin access control lists. A signed carry takes the write bits
+taken; <code>react</code>'s own lines are signed by no operator, and the list reader
+reads mode bits, not access control lists, though a signed start also refuses
+an access control list on Linux and macOS. A signed carry takes the write bits
 off the list it carried from before it writes the new one, and <code>react</code> and
 <code>stops lift</code> refuse a list its owner may not write; <code>react</code> under a signed
 route reads only a signed runs directory. A carried stop of a rule no route
@@ -1309,8 +1318,10 @@ and <code>doctor</code> and <code>health.socket</code> report <code>trust</code>
 without the id; the plane refuses to start
 when its account may write the roster file, so that account cannot put an older
 roster in place; it still raises the roster's floor, so it can withhold a newer
-roster within the held one's lifetime; a <code>read</code> grant parses and grants nothing
-yet, which <code>doctor</code> says;
+roster within the held one's lifetime; <code>doctor</code> refuses, as a serving plane
+does, a roster at the floor's serial with another digest and one naming a
+pinned key, such as the policy key, as an operator; a <code>read</code> grant parses and
+grants nothing yet, which <code>doctor</code> says;
 <a href="/docs/contracts#signed-files-and-their-project-checks">contracts.md</a> lists each
 signed file a plane takes with its project check.</p>
 <h3 id="scenario-runs">scenario-runs</h3>

@@ -2,7 +2,7 @@
 title: Upgrade a plane from 0.18
 summary: What a plane meets in 0.19, the route's deadline and retry rules first, and the steps a signed plane adds for its records, inbox and stop list.
 type: how-to
-covers: [internal/reaction/maystop.go, internal/reaction/permits.go, internal/reaction/stopwrite/carry.go, cmd/guardana-control/route.go, cmd/guardana-control/stops_init.go, cmd/guardana-control/runs_read.go, cmd/guardana-control/procedure_cases.go, cmd/guardana-control/notify.go, internal/notify/deliver.go, internal/segmentlog/dir.go, cmd/guardana-gateway/collect_listen.go, cmd/guardana-gateway/runs.go, cmd/guardana-gateway/doctor_runs.go, internal/approvals/inbox/inbox.go, internal/gatewayconfig/yaml.go]
+covers: [internal/reaction/maystop.go, internal/reaction/permits.go, internal/reaction/stopwrite/carry.go, cmd/guardana-control/route.go, cmd/guardana-control/stops_init.go, cmd/guardana-control/runs_read.go, cmd/guardana-control/procedure_cases.go, cmd/guardana-control/notify.go, internal/notify/deliver.go, internal/segmentlog/dir.go, cmd/guardana-gateway/collect_listen.go, cmd/guardana-gateway/runs.go, cmd/guardana-gateway/doctor_runs.go, internal/approvals/inbox/inbox.go, internal/gatewayconfig/yaml.go, adapters/enforce/decode.go, internal/files/judged.go, internal/files/exchange_*.go]
 ---
 
 # Upgrade a plane from 0.18
@@ -13,7 +13,7 @@ A plane ran 0.18 and is to run 0.19. No format changed its version
 ([format versions](../reference/versions.md#what-019-changed)), but 0.19
 refuses some routes, documents and settings 0.18 took. Every plane follows
 the first part, in its order; a plane under `approvals.authority: signed`
-also follows the second. A plane still on 0.17 takes
+also follows the second before it starts. A plane still on 0.17 takes
 [upgrade a plane from 0.17](upgrade-a-plane-from-0-17.md) with the 0.19
 binaries first, as that page says.
 
@@ -22,9 +22,8 @@ binaries first, as that page says.
 - The plane is stopped.
 - Copies of its configuration, route and stop list directory are kept aside
   for a roll back.
-- The paths below are examples: `/srv/plane` holds the route and the stop
-  lists, `route.json` is the route document the route was signed from, and
-  `orders-eu-1` is a signed plane's `plane_id`.
+- The paths below are examples; `route.json` is the document the route was
+  signed from.
 
 ## Every plane
 
@@ -44,10 +43,12 @@ it again. Under any authority it now refuses:
 - a route naming `DEADLINE_EXCEEDED`, `DENIED_ACTION_RETRIED_ARGUMENTS` or
   `DENIED_ACTION_RETRIED_RESOURCE`, at either version: step 2.
 
+Under `signed` it also fails, and may fail first, on what the second part
+fixes.
+
 ### 2. Take the deadline and retry rules out of the route
 
-Each of these three rules compares two events' times, and nothing in an
-event names the plane whose clock stamped it, so their findings are
+These three rules compare two events' times, so their findings are
 `SUSPECTED` at most and stop nothing
 ([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)).
 Skip this step when the route names none of them. A signed plane takes the
@@ -73,15 +74,15 @@ guardana-control stops init --route /srv/plane/route-019.json --public-key /srv/
 
 The carry keeps every stop no lift ended. A stop one of the three rules
 wrote is kept only where a rule of the new route still stops its procedure,
-and for no longer than that rule allows. A carry that cannot keep a stop is
+and only when its span is within that rule's lifetime. A carry that cannot keep a stop is
 refused, naming the stop and the `stops lift` that ends
 it: run that lift on the old list with the old route, which `stops lift`
-takes for that alone, then run 2c again. Run `react` with `--route
-/srv/plane/route-019.json --stops /srv/plane/stops-019` from now on; no plane
-reads the old list.
+takes for that alone, then run 2c again. Point `react` at the new route and
+list; no plane reads the old one.
 
 The same evidence now gives these rules' findings rule version `2` and a new
-finding id, so `notify` delivers each once more as a new record.
+finding id, so `notify` delivers each alert among them once more, as a new
+record.
 
 ### 3. Add the project to each procedure test case
 
@@ -101,7 +102,7 @@ A case that expects one of the three rules `CONFIRMED` now fails: expect
 
 `notify` gives the program only `PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`
 and `USER` of its own environment. Name each other variable the program
-needs, a token, a proxy or a certificate path among them, with `--env`; a
+needs with `--env`; a
 name not set is refused with exit 2 before any program runs
 ([supervision](../reference/supervision.md#notify)). A program that loses a
 variable may still exit 0, so check that the alert arrived.
@@ -120,8 +121,8 @@ others may write without the sticky bit
 Give `--dir` the directory's own path, under a parent the collector's account
 or root owns.
 
-`collect` reads `--listen` as a URL: a socket path holding `#`, `?`, `%` or a
-space is given escaped, as `collect` prints it in `export.endpoint`.
+`collect` reads `--listen` as a URL: a socket path holding `#`, `?` or `%` is
+given escaped, as `collect` prints it in `export.endpoint`.
 
 ### 6. Replace signed outputs on Linux or macOS
 
@@ -129,10 +130,18 @@ space is given escaped, as `collect` prints it in `export.endpoint`.
 `supervise --view` and the signed pause writers replace an existing output by
 swapping two names in one step. Outside Linux and macOS, or on a file system
 that cannot swap, such as some network file systems, they refuse to replace
-it, with nothing written; a first output is written as before. Keep those
+it; a first output is written as before. Keep those
 files on a local file system of Linux or macOS.
 
-Then start the plane.
+### 7. Send a result hash the plane takes
+
+A plane serving the enforcement API refuses a `complete` whose `resultHash`
+is not `sha256:` and 64 lower-case hex digits, as malformed; send that form
+or none. 0.19's Go and Python clients check it before sending; 0.18's Python
+client did not.
+
+A plane not under `signed` then starts; a signed plane starts after the
+second part.
 
 ## A signed plane
 
@@ -166,10 +175,9 @@ rm -r /srv/plane/stopsfloor-copy
 The carry takes the write bits off the old list before it writes the new
 one, so a `react` left on it fails rather than append a stop no plane reads.
 Under another account than the list's owner it refuses before it writes
-anything. A kept stop of `DENIED_ACTION_RETRIED_ARGUMENTS` or
-`_RESOURCE` that stopped an agent or a principal stays only where a rule of
-the new route stops that procedure at that scope; `REPEATED_DENIAL` alone may
-now stop one ([reaction under signed](../reference/reaction-signed.md)). Point
+anything. A kept retry stop of an agent or a principal needs a
+`REPEATED_DENIAL` rule of its procedure at that scope
+([reaction under signed](../reference/reaction-signed.md)). Point
 `reaction.route` and `reaction.stops` at the new files, and `react` too.
 
 ### 2. The runs directory
@@ -193,15 +201,15 @@ at start, in `doctor` and at every read: `chown` it to the plane's account,
 the operators' group kept, mode `1770`
 ([which account owns what](set-up-signed-operators.md#which-account-owns-what)).
 It also refuses a stop list its own account may write through an access
-control list, and an export header that a variable sets with its hyphens
-spelled as they are, such as `GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT`, as
-it refused the `_` spelling: put the header under `export.headers` in the
-configuration, which no other account should read when it holds a credential.
+control list (remove that entry), and an export header that a variable sets with its hyphens
+spelled as they are, such as `GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT`: put the header under
+`export.headers` in the configuration, which no other account should read.
+
+Then start the plane.
 
 ## Verify
 
-- `doctor` passes every check, and names who signed the route and the list
-  under `signed`.
+- `doctor` passes every check.
 - `stops list` on the new directory shows each kept stop and its rule; lift
   any you do not keep.
 - `procedure test` passes each cases document.
@@ -210,17 +218,16 @@ configuration, which no other account should read when it holds a credential.
 
 Stop the plane and start the 0.18 binaries. 0.18 reads the route 0.19
 signed and the list it carried, unless that list keeps a stop of one of the
-three rules: 0.18 refuses such a line, and the plane then refuses every call
-`STOP_STATE_UNAVAILABLE`. In that case point `reaction.route` and
+three rules: 0.18 refuses such a line and will not start on that list. In
+that case point `reaction.route` and
 `reaction.stops` back at the files you kept. The route floor holds the new
 route's serial, so make a new one with `policy state init --kind route
 --route-id <route_id>` in a new directory and name it in
 `reaction.floor_dir`. Under `signed` the stop list floor holds the carried
 list's serial as well: make a new floor with `stops floor init --tenant <tenant>
 --project <project>` in a new directory and name it in
-`reaction.stops_floor_dir`; a floor holding no serial takes the old list. The
-carry left that list without its write bits: give them back as its owner
+`reaction.stops_floor_dir`; a floor holding no serial takes the old list. A
+signed carry left that list without its write bits: give them back as its owner
 with `chmod u+w` before 0.18's `react` writes to it.
 
 0.18 refuses `project` in a cases document and `notify --env`: remove both.
-A route 0.18 signs may name the three rules again.

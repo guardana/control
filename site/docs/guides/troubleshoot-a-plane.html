@@ -202,7 +202,7 @@ if the stop list is degraded, start a new one with <code>stops init --carry</cod
 restart (<a href="/docs/reference/reaction">reaction</a>).</p>
 <h2 id="a-signed-plane-will-not-start">A signed plane will not start</h2>
 <p><strong>Symptom.</strong> Under <code>approvals.authority: signed</code>, <code>run</code> exits naming a key and
-<code>under the signed authority the plane's own account may not be able to change it</code>, or naming the environment.</p>
+<code>under the signed authority the plane's own account may not be able to change it</code>, or naming the environment, <code>approvals.inbox_dir</code> or <code>records/</code>.</p>
 <p><strong>Cause.</strong> A signed plane refuses to start when its own account owns or may
 write the configuration, the roster, the root key, the pause file, the
 route, the stop list or the runs directory's <code>records/</code>, or a directory on

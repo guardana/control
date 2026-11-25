@@ -243,7 +243,14 @@ key), [ADR-0018](adr/0018-keys-and-bundles-on-disk.md). `policy keygen` and
 same package.
 
 Unix-like systems only; the approvals store, the hold journal and the spool
-carry their own file code.
+carry their own file code. `policy sign`, `route sign`, `operators roster
+sign`, `policy renew`, `supervise --view` and the signed pause writers replace
+an existing output only while it is the file they judged (inode, type, mode,
+size and times), under a lock of that file, by exchanging two names in one
+step (`internal/files/judged.go`); outside Linux and macOS, or on a file system
+that cannot exchange, they refuse to replace it. The lock binds this
+program's writers alone, and any account that can read the file can hold it
+until the write gives up.
 
 ### policy-matcher
 
@@ -270,7 +277,9 @@ operator's, and the gateway binary holds neither
 commands use it (`policy renew`, `policy state init` and `reset`), and so does
 every plane, through `policy.state_dir`. A floor protects only while its
 directory outlives the plane, and an account that can write the directory can
-lower it.
+lower it. `Init` leaves a new floor directory `0700` under any umask that
+keeps the owner's read bit, and under one that takes it fails and leaves
+none.
 
 ### policy-refresh
 
@@ -878,8 +887,9 @@ start a new list across a restart, except under `signed`, where the stops
 directory and the route are refused when that account may write them and every
 list chains to the floor and extends the part of it the plane accepted, a floor
 that account can still lower, after which a list the stop writers cut back is
-taken; `react`'s own lines are signed by no operator, and the checks read mode
-bits, not darwin access control lists. A signed carry takes the write bits
+taken; `react`'s own lines are signed by no operator, and the list reader
+reads mode bits, not access control lists, though a signed start also refuses
+an access control list on Linux and macOS. A signed carry takes the write bits
 off the list it carried from before it writes the new one, and `react` and
 `stops lift` refuse a list its owner may not write; `react` under a signed
 route reads only a signed runs directory. A carried stop of a rule no route
@@ -932,8 +942,10 @@ and `doctor` and `health.socket` report `trust`, naming that id,
 without the id; the plane refuses to start
 when its account may write the roster file, so that account cannot put an older
 roster in place; it still raises the roster's floor, so it can withhold a newer
-roster within the held one's lifetime; a `read` grant parses and grants nothing
-yet, which `doctor` says;
+roster within the held one's lifetime; `doctor` refuses, as a serving plane
+does, a roster at the floor's serial with another digest and one naming a
+pinned key, such as the policy key, as an operator; a `read` grant parses and
+grants nothing yet, which `doctor` says;
 [contracts.md](contracts.md#signed-files-and-their-project-checks) lists each
 signed file a plane takes with its project check.
 
