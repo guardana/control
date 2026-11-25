@@ -87,7 +87,10 @@ go_packages_covered() {
     return 1
   }
   while IFS= read -r m; do
-    abs="$(cd "${m}" && pwd -P)" || return 1
+    abs="$(cd "${m}" && pwd -P)" || {
+      printf 'go_packages_covered: the directory of module %s cannot be resolved\n' "${m}" >&2
+      return 1
+    }
     roots+="${abs}"$'\n'
   done <<<"${mods}"
   while IFS=$'\t' read -r old new; do

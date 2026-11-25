@@ -609,10 +609,12 @@ stamp rested on bytes the commit does not hold.</p>
 </li>
 <li>
 <p>The pre-push hook and <code>scripts/gate-commit.sh</code> ignore a local grafts file,
-a local shallow file and a local commit-graph, single or a chain, as they
-ignore replace refs, and keep git's advice about grafts out of their output.
-Each could hide an unstamped commit from the hook that the remote would
-still receive.</p>
+a local shallow file and a local commit-graph, single or a chain, also when
+<code>git -c</code> turns the graph on, as they ignore replace refs, and keep git's
+advice about grafts out of their output. Each could hide an unstamped
+commit from the hook that the remote would still receive. Both still trust
+the local objects and the pusher's command line: they stop a mistake, not a
+writer of <code>.git</code>.</p>
 </li>
 <li>
 <p>The release checks the gate again right before it tags the image and right
@@ -666,11 +668,13 @@ neither build, so its tests could run in no job unnoticed.</p>
 <p><code>scripts/fuzz-smoke.sh</code> refuses a line of a package's fuzz listing that no
 file the build takes declares, such as one a <code>TestMain</code> prints before the
 listing, and counts a target as run only when the fuzzing engine reports
-executions in a verbose run that ran that target alone under its own name.
-It counted such a line as a target, and fuzzing it, a target whose
-<code>TestMain</code> exits before fuzzing, or one whose <code>TestMain</code> points the engine
-at another target, ran nothing. A <code>TestMain</code> that prints the engine's
-report and the names itself still passes.</p>
+executions in a verbose run that ran that target alone under its own name
+for at least nine tenths of the time asked for, which must be whole
+seconds, minutes or hours. It counted such a line as a target, and fuzzing
+it, a target whose <code>TestMain</code> exits before fuzzing, one whose <code>TestMain</code>
+points the engine at another target, or one whose <code>TestMain</code> cuts the fuzz
+time, ran nothing or almost nothing. A <code>TestMain</code> that prints the engine's
+report, the names and the time itself still passes.</p>
 </li>
 <li>
 <p>The dependency rule refuses <code>time.Timer</code> and <code>time.Ticker</code> in the guarded

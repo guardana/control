@@ -31,6 +31,16 @@ duration="${1:-10s}"
 list_only=false
 if [[ "${duration}" == --list ]]; then
   list_only=true
+elif [[ "${duration}" =~ ^([1-9][0-9]{0,4})(s|m|h)$ ]]; then
+  # Whole units only, so the time each run took can be held to it below.
+  case "${BASH_REMATCH[2]}" in
+    s) want_ms=$((BASH_REMATCH[1] * 1000)) ;;
+    m) want_ms=$((BASH_REMATCH[1] * 60000)) ;;
+    h) want_ms=$((BASH_REMATCH[1] * 3600000)) ;;
+  esac
+else
+  printf 'fuzz-smoke: the fuzz time %s is not a whole number of seconds, minutes or hours, such as 10s\n' "${duration}" >&2
+  exit 1
 fi
 
 files="$(repo_files '*_test.go')"
@@ -252,10 +262,11 @@ if [[ "${list_only}" == true ]]; then
 fi
 
 # A run counts only on the fuzzing engine's own report of executions, from a
-# verbose run that ran the target under its own name and no other: a TestMain
-# that exits 0 before fuzzing passes go test too, and one can point the engine
-# at another target. A TestMain that prints such a report and such names
-# itself still passes; that is left to review.
+# verbose run that ran the target under its own name and no other, for at
+# least nine tenths of the time asked for: a TestMain that exits 0 before
+# fuzzing passes go test too, one can point the engine at another target, and
+# one can cut the fuzz time. A TestMain that prints such a report, such names
+# and such a time itself still passes; that is left to review.
 log="$(mktemp)"
 trap 'rm -f "${log}"' EXIT
 for target in "${targets[@]}"; do
@@ -274,8 +285,15 @@ for target in "${targets[@]}"; do
   fi
   ran="$(sed -nE 's/^=== RUN +([^ /]+).*/\1/p' "${log}" | LC_ALL=C sort -u | tr '\n' ' ')"
   if [[ "${ran}" != "${name} " ]] || ! grep -Fq -- "--- PASS: ${name} (" "${log}"; then
+    ran="${ran% }"
     printf 'fuzz-smoke: %s %s: its fuzz run ran %s, not that target alone under its own name; refusing to count it as run\n' \
-      "${shown}" "${name}" "${ran:+${ran% }}${ran:-nothing}" >&2
+      "${shown}" "${name}" "${ran:-nothing}" >&2
+    exit 1
+  fi
+  took="$(sed -nE "s/^--- PASS: ${name} \(([0-9]+)\.([0-9]{2})s\)\$/\1\2/p" "${log}")"
+  if [[ ! "${took}" =~ ^[0-9]+$ ]] || ((100 * 10#${took} < 9 * want_ms)); then
+    printf 'fuzz-smoke: %s %s passed after %s of the %s asked for; refusing to count a cut fuzz run as run\n' \
+      "${shown}" "${name}" "$(grep -F -- "--- PASS: ${name} (" "${log}" | sed -E 's/.*\((.*)\)$/\1/' | head -n 1)" "${duration}" >&2
     exit 1
   fi
 done

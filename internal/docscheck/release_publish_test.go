@@ -254,14 +254,19 @@ func TestTheClientIsUploadedOnlyFromAGatedCommit(t *testing.T) {
 }
 
 // indexJob returns the index job's steps and whether it grants actions: read.
-func indexJob(t *testing.T) (steps []*yamlNode, readScope bool) {
+// indexJob returns the index job's steps, whether it grants actions: read,
+// and the env entries every one of its steps inherits, from the workflow and
+// from the job, that carry a token or a secret.
+func indexJob(t *testing.T) (steps []*yamlNode, readScope bool, inherited []string) {
 	t.Helper()
 	root, err := parseBlockYAML(readLines(t, repoFS(t), releaseWorkflowPath))
 	if err != nil {
 		t.Fatalf("%s: %v", releaseWorkflowPath, err)
 	}
+	inherited = stepTokens(root)
 	for _, jobs := range root.children("jobs") {
 		for _, job := range jobs.children("index") {
+			inherited = append(inherited, stepTokens(job)...)
 			for _, list := range job.children("steps") {
 				steps = append(steps, list.kids...)
 			}
@@ -270,14 +275,16 @@ func indexJob(t *testing.T) (steps []*yamlNode, readScope bool) {
 			}
 		}
 	}
-	return steps, readScope
+	return steps, readScope, inherited
 }
 
-// stepTokens names the env entries of a step that carry a token or a secret.
+// stepTokens names the env entries of a workflow, a job or a step that carry
+// a token or a secret. Expression contexts are case-insensitive, so the
+// value is read in lower case.
 func stepTokens(s *yamlNode) (names []string) {
 	for _, env := range s.children("env") {
 		for _, v := range env.kids {
-			if strings.Contains(v.value, "token") || strings.Contains(v.value, "secrets.") {
+			if value := strings.ToLower(v.value); strings.Contains(value, "token") || strings.Contains(value, "secrets") {
 				names = append(names, v.key)
 			}
 		}
@@ -290,9 +297,12 @@ func stepTokens(s *yamlNode) (names []string) {
 // the runs the check judges, and the check holds the token while the upload,
 // whose tools would inherit it, holds none.
 func TestTheIndexUploadFollowsItsOwnGateCheck(t *testing.T) {
-	steps, readScope := indexJob(t)
+	steps, readScope, inherited := indexJob(t)
 	if !readScope {
 		t.Errorf("%s: the index job does not grant actions: read, which the gate check reads the runs with", releaseWorkflowPath)
+	}
+	if len(inherited) != 0 {
+		t.Errorf("%s: the index job's steps inherit %v from the workflow's or the job's env, so the upload's tools would hold it", releaseWorkflowPath, inherited)
 	}
 	at := slices.IndexFunc(steps, func(s *yamlNode) bool { return len(stepScripts(s, "Upload")) == 1 })
 	if at < 1 || len(stepScripts(steps[at-1], "Check the gate again")) != 1 {

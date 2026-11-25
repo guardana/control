@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -115,11 +116,12 @@ func newHiddenCommitRepo(t *testing.T) hiddenCommitRepo {
 	return r
 }
 
-// pushThree runs the hook as git would for a push of three to main.
-func (r hiddenCommitRepo) pushThree(t *testing.T) (string, error) {
+// pushThree runs the hook as git would for a push of three to main, with
+// extra added to the environment.
+func (r hiddenCommitRepo) pushThree(t *testing.T, extra ...string) (string, error) {
 	cmd := exec.Command("/bin/bash", filepath.Join(repoRoot(t), "scripts", "pre-push.sh"), "origin") //nolint:gosec // G204: the repository's own hook
 	cmd.Dir = r.work
-	cmd.Env = r.env
+	cmd.Env = append(slices.Clone(r.env), extra...)
 	cmd.Stdin = strings.NewReader("refs/heads/main " + r.three + " refs/heads/main " + r.base + "\n")
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -149,7 +151,8 @@ func (r hiddenCommitRepo) graphFile(t *testing.T) string {
 // TestPrePushReadsParentsFromTheCommitsThemselves: a commit-graph, a single
 // file or a chain of them, that names base as the parent of two hides one,
 // which no stamp covers, from a hook that trusts it, while the push would
-// still send one to the remote. The hook reads the parents the objects name.
+// still send one to the remote. The hook reads the parents the objects name,
+// also when the pusher's `git -c core.commitGraph=true` turns the graph on.
 func TestPrePushReadsParentsFromTheCommitsThemselves(t *testing.T) {
 	const ungated = "1 of 3 commit(s) ungated"
 	for name, write := range map[string][]string{
@@ -169,6 +172,32 @@ func TestPrePushReadsParentsFromTheCommitsThemselves(t *testing.T) {
 			if out, err := r.pushThree(t); err == nil || !strings.Contains(out, ungated) {
 				t.Errorf("pre-push with %s that hides one = %v, want %q:\n%s", name, err, ungated, out)
 			}
+			if out, err := r.pushThree(t, "GIT_CONFIG_PARAMETERS='core.commitgraph'='true'"); err == nil || !strings.Contains(out, ungated) {
+				t.Errorf("pre-push under git -c core.commitGraph=true with %s that hides one = %v, want %q:\n%s", name, err, ungated, out)
+			}
 		})
+	}
+}
+
+// TestGateCommitSetsGitAsThePrePushHookDoes: scripts/gate-commit.sh picks the
+// commit it archives through the same git settings the hook's test above
+// holds, so a graph, a graft, a shallow file or a replace ref hides nothing
+// from either. The settings are compared line for line.
+func TestGateCommitSetsGitAsThePrePushHookDoes(t *testing.T) {
+	block := func(script string) string {
+		b, err := os.ReadFile(filepath.Join(repoRoot(t), "scripts", script)) //nolint:gosec // G304: a script of this repository
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(b)
+		from := strings.Index(s, "\nn=\"${GIT_CONFIG_COUNT:-0}\"\n")
+		to := strings.Index(s, "'core.commitgraph'='false'\"\n")
+		if from < 0 || to < from {
+			t.Fatalf("scripts/%s does not set git's config from GIT_CONFIG_COUNT through GIT_CONFIG_PARAMETERS", script)
+		}
+		return s[from:to]
+	}
+	if hook, gate := block("pre-push.sh"), block("gate-commit.sh"); hook != gate {
+		t.Errorf("scripts/gate-commit.sh sets git as\n%s\nwhile scripts/pre-push.sh sets it as\n%s", gate, hook)
 	}
 }

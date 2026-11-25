@@ -346,10 +346,12 @@ verify one.
   so a test could read a fixture through it from outside the commit, and the
   stamp rested on bytes the commit does not hold.
 - The pre-push hook and `scripts/gate-commit.sh` ignore a local grafts file,
-  a local shallow file and a local commit-graph, single or a chain, as they
-  ignore replace refs, and keep git's advice about grafts out of their output.
-  Each could hide an unstamped commit from the hook that the remote would
-  still receive.
+  a local shallow file and a local commit-graph, single or a chain, also when
+  `git -c` turns the graph on, as they ignore replace refs, and keep git's
+  advice about grafts out of their output. Each could hide an unstamped
+  commit from the hook that the remote would still receive. Both still trust
+  the local objects and the pusher's command line: they stop a mistake, not a
+  writer of `.git`.
 - The release checks the gate again right before it tags the image and right
   before it publishes. A `main` that moved past the commit after the first
   check stops the release at the next of those steps; what the earlier step
@@ -387,11 +389,13 @@ verify one.
 - `scripts/fuzz-smoke.sh` refuses a line of a package's fuzz listing that no
   file the build takes declares, such as one a `TestMain` prints before the
   listing, and counts a target as run only when the fuzzing engine reports
-  executions in a verbose run that ran that target alone under its own name.
-  It counted such a line as a target, and fuzzing it, a target whose
-  `TestMain` exits before fuzzing, or one whose `TestMain` points the engine
-  at another target, ran nothing. A `TestMain` that prints the engine's
-  report and the names itself still passes.
+  executions in a verbose run that ran that target alone under its own name
+  for at least nine tenths of the time asked for, which must be whole
+  seconds, minutes or hours. It counted such a line as a target, and fuzzing
+  it, a target whose `TestMain` exits before fuzzing, one whose `TestMain`
+  points the engine at another target, or one whose `TestMain` cuts the fuzz
+  time, ran nothing or almost nothing. A `TestMain` that prints the engine's
+  report, the names and the time itself still passes.
 - The dependency rule refuses `time.Timer` and `time.Ticker` in the guarded
   trees and the trees they reach, by name and through forbidigo. Their
   `Reset` schedules from the clock, so a timer a caller handed in let such a

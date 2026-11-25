@@ -144,6 +144,30 @@ func TestFuzzRunCountsOnlyTheTargetItNamed(t *testing.T) {
 	}
 }
 
+// TestFuzzRunCountsOnlyARunOfTheTimeAskedFor: a TestMain can cut the fuzz
+// time to a few executions, which the engine then reports as a real run of
+// the named target. A run counts only once it took most of the time asked
+// for, and a time that is not whole units is refused before anything runs.
+func TestFuzzRunCountsOnlyARunOfTheTimeAskedFor(t *testing.T) {
+	dir := stageModule(t, []string{"scripts/fuzz-smoke.sh"}, map[string]string{
+		"go.mod":         stagedGoMod,
+		"e/e.go":         "package e\n",
+		"e/fuzz_test.go": "package e\n\nimport \"testing\"\n\nfunc FuzzE(f *testing.F) {\n\tf.Add(1)\n\tf.Fuzz(func(t *testing.T, _ int) {})\n}\n",
+		"e/main_test.go": testMainThat("if flag.Lookup(\"test.fuzz\").Value.String() != \"\" {\n\t\t_ = flag.Set(\"test.fuzztime\", \"2x\")\n\t\tfmt.Print()\n\t}", "e"),
+	})
+	const want = "fuzz-smoke: ./e FuzzE passed after "
+	out, err := runIn(t, dir, "bash scripts/fuzz-smoke.sh 2s")
+	if err == nil || !strings.Contains(out, want) || !strings.Contains(out, "of the 2s asked for") || strings.Contains(out, "target(s) run") {
+		t.Errorf("fuzz-smoke 2s with a TestMain that cuts the fuzz time to two executions = %v, want a refusal saying %q:\n%s", err, want, out)
+	}
+	for _, d := range []string{"1500ms", "100x", "1m30s"} {
+		const refused = "is not a whole number of seconds, minutes or hours"
+		if out, err := runIn(t, dir, "bash scripts/fuzz-smoke.sh "+d); err == nil || !strings.Contains(out, refused) || strings.Contains(out, "FuzzE for") {
+			t.Errorf("fuzz-smoke %s = %v, want a refusal saying %q before any run:\n%s", d, err, refused, out)
+		}
+	}
+}
+
 // testMainThat is a TestMain of package pkg that parses the test flags, runs
 // body, then the tests.
 func testMainThat(body, pkg string) string {
