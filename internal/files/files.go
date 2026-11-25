@@ -229,9 +229,8 @@ func lockNamed(ctx context.Context, f *os.File, what string) error {
 	return nil
 }
 
-// lockRefused is refusal, a lock that could not be taken before the new file
-// took the name, saying nothing was written when removed, the removal of the
-// new file, succeeded, and joined with removed otherwise.
+// lockRefused adds to a lock refusal that nothing was written when removing
+// the new file succeeded, and joins the removal's error otherwise.
 func lockRefused(refusal, removed error) error {
 	if removed != nil {
 		return errors.Join(refusal, removed)
