@@ -59,8 +59,9 @@ type Tail struct {
 	// Bytes counts the lines no report closes and the bytes after the last
 	// newline.
 	Bytes int64
-	// Held says a writer held the log then, so the tail is a write still
-	// open; it is asked only when Bytes is not zero.
+	// Held says a writer held the log then, or the file's size changed
+	// while it was read, so the tail is a write still open; it is asked only
+	// when Bytes is not zero.
 	Held bool
 }
 
@@ -80,6 +81,15 @@ func ReadFileTail(path string) ([]*findingv1alpha1.Record, Tail, error) {
 	held, err := heldByWriter(f)
 	if err != nil {
 		return nil, Tail{}, err
+	}
+	if !held {
+		// A writer that committed and let go after the size was taken has
+		// changed the size: that tail was a write in progress.
+		now, err := f.Stat()
+		if err != nil {
+			return nil, Tail{}, err
+		}
+		held = now.Size() != size
 	}
 	return out, Tail{Bytes: size - committed, Held: held}, nil
 }

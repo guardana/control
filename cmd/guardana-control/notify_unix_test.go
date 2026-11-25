@@ -217,3 +217,27 @@ func TestNotifyExitsOneOnAWriteNoWriterWillClose(t *testing.T) {
 		"helper-stdout\nunclosed: "+strconv.Itoa(len(line)+1)+" bytes after the last write a report closed, and no writer holds the log\n"+
 			"1 delivered, 0 already delivered, 0 failed, 1 inform left\n")
 }
+
+// TestNotifyPassesTheVariablesEnvNames: --env hands the program a variable
+// of the command's environment, and a name the command does not set is
+// refused before any program runs, printing nothing on standard output.
+func TestNotifyPassesTheVariablesEnvNames(t *testing.T) {
+	t.Setenv("NOTIFY_CLI_TOKEN", "for-the-program")
+	r := newNotifyRig(t)
+	status, stdout, stderr := r.notify(t, "env", "--init", "--env", "NOTIFY_CLI_UNSET")
+	if status != exitUsage || stdout != "" || !strings.Contains(stderr, "NOTIFY_CLI_UNSET") || r.received(t) != "" {
+		t.Errorf("an unset --env: status %d, stdout %q, stderr %q, delivered %q; want 2 naming it and nothing run",
+			status, stdout, stderr, r.received(t))
+	}
+	status, _, stderr = r.notify(t, "env", "--init", "--env", "NOTIFY_CLI_TOKEN")
+	if status != exitOK {
+		t.Fatalf("notify --env: status %d, stderr %q", status, stderr)
+	}
+	env, err := os.ReadFile(filepath.Join(r.record, "env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains("\n"+string(env), "\nNOTIFY_CLI_TOKEN=for-the-program\n") {
+		t.Errorf("the program's environment lacks the variable --env named:\n%s", env)
+	}
+}

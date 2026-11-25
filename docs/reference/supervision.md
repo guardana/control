@@ -24,7 +24,7 @@ guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --find
     [--view <file> [--view-all]]
     [--roster <file> --root-key <file> --tenant <t> --project <p>]
 guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
-    -- <program> [<arg>]...
+    [--env <name>]... -- <program> [<arg>]...
 ```
 
 ## The procedure
@@ -154,16 +154,16 @@ The reader refuses an unknown schema or a member its schema lacks.
 
 `notify` hands each `alert` record, in log order, one line on standard
 input, to the program after `--`, without a shell, with only `PATH`,
-`HOME`, `LANG`, `LC_ALL`, `TMPDIR` and `USER` of its environment, and kills
-its process group at the timeout (default 30 s) and on exit. A delivery,
-keyed by finding id and verdict, is marked only once the program took its
-whole line and exited 0, so a crash delivers it again; a receiver drops a
-seen key. The owner-only state directory is locked in use; `--init` starts
-one, refused over one. A failed delivery is retried; a new state alone
-repeats a delivered one. Exit 0 when nothing failed; 1 when a delivery
-failed, on an interrupt, on a write no report closed and no writer holds, or
-when the run stopped after a program ran (a mark unsaved, a log changed);
-2, printing nothing, on a state or log refused before any program ran.
+`HOME`, `LANG`, `LC_ALL`, `TMPDIR` and `USER` of its environment; name any
+other it needs with `--env`, refused if unset. Its process group is killed
+at the timeout (default 30 s) and on exit. A delivery, keyed by finding id
+and verdict, is marked only once the program took its whole line and exited
+0, so a crash delivers it again; receivers drop seen keys. The owner-only
+state is locked in use; `--init` starts one, refused over one. A failed
+delivery is retried; a new state alone repeats a delivered one. Exit 0 when
+nothing failed; 1 when a delivery failed, on an interrupt, on an unclosed
+write no writer holds, or when the run stopped after a program ran; 2,
+printing nothing, on a state, log or `--env` refused before any program ran.
 
 ## findings export
 

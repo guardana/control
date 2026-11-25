@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	findingv1alpha1 "github.com/guardana/control/api/gen/go/guardana/control/finding/v1alpha1"
@@ -27,10 +28,13 @@ type Options struct {
 	// it is ErrInitialised.
 	Init bool
 	// Program and Args are run without a shell, once per delivery, in this
-	// process's working directory, with only PATH, HOME, LANG, LC_ALL, TMPDIR
-	// and USER of its environment, each where set.
+	// process's working directory, with only PATH, HOME, LANG, LC_ALL, TMPDIR,
+	// USER and the variables Env names of its environment, each where set.
 	Program string
 	Args    []string
+	// Env names the variables of this process's environment the program
+	// also receives; each must be set here.
+	Env []string
 	// Timeout bounds one delivery; at it the program's group is killed.
 	Timeout time.Duration
 	// Stdout and Stderr take the program's output; a nil one discards it.
@@ -110,6 +114,23 @@ func (o Options) check() error {
 		return fmt.Errorf("%w: no program", ErrOptions)
 	case o.Timeout <= 0:
 		return fmt.Errorf("%w: a timeout of %s", ErrOptions, o.Timeout)
+	}
+	for _, name := range o.Env {
+		if err := envName(name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// envName refuses a name no variable can have, or one this process does not
+// set. A name holding '=' may hold a value, so that refusal does not quote it.
+func envName(name string) error {
+	if name == "" || strings.ContainsAny(name, "=\x00") {
+		return fmt.Errorf("%w: a variable to pass is named with no name, an '=' or a NUL", ErrOptions)
+	}
+	if _, ok := os.LookupEnv(name); !ok {
+		return fmt.Errorf("%w: the variable %q to pass is not set", ErrOptions, name)
 	}
 	return nil
 }

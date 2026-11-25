@@ -86,6 +86,66 @@ func TestTheProgramGetsOnlyTheBaseEnvironment(t *testing.T) {
 	}
 }
 
+// TestTheProgramGetsTheVariablesTheOptionsName: a variable Env names
+// reaches the program with this process's value, once, and one it does
+// not name stays out.
+func TestTheProgramGetsTheVariablesTheOptionsName(t *testing.T) {
+	t.Setenv("NOTIFY_TEST_TOKEN", "for-the-program")
+	t.Setenv("NOTIFY_TEST_OTHER", "not-for-the-program")
+	r := newRig(t)
+	r.write(t, finding(idA, confirmed, alert))
+	o := r.options(true)
+	o.Args[1] = "env"
+	o.Env = []string{"NOTIFY_TEST_TOKEN", "PATH", "NOTIFY_TEST_TOKEN"}
+	wantSummary(t, r.run(t, o), 1, 0, 0, 0)
+	raw, err := os.ReadFile(filepath.Join(r.record, "env"))
+	mustDo(t, err)
+	var token, path int
+	for _, v := range strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n") {
+		switch {
+		case v == "NOTIFY_TEST_TOKEN=for-the-program":
+			token++
+		case strings.HasPrefix(v, "PATH="):
+			path++
+		}
+	}
+	if token != 1 || path != 1 {
+		t.Errorf("the program's environment holds the named variable %d times and PATH %d, want once each:\n%s", token, path, raw)
+	}
+	if strings.Contains(string(raw), "not-for-the-program") {
+		t.Errorf("the program's environment carries a variable no option names:\n%s", raw)
+	}
+}
+
+// TestAnEnvNameNotSetOrMalformedIsRefused: a name this process does not
+// set, or one no variable can have, refuses the run before any program
+// runs, and the refusal never carries a value.
+func TestAnEnvNameNotSetOrMalformedIsRefused(t *testing.T) {
+	t.Setenv("NOTIFY_TEST_TOKEN", "secret-value")
+	for name, env := range map[string][]string{
+		"not set":         {"NOTIFY_TEST_UNSET"},
+		"empty":           {""},
+		"with an equals":  {"NOTIFY_TEST_TOKEN=secret-value"},
+		"with a NUL byte": {"NOTIFY_TEST_TOKEN\x00"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t)
+			r.write(t, finding(idA, confirmed, alert))
+			o := r.options(true)
+			o.Env = env
+			s, err := Run(t.Context(), o)
+			wantIs(t, "a refused --env", err, ErrOptions)
+			wantSummary(t, s, 0, 0, 0, 0)
+			if err != nil && strings.Contains(err.Error(), "secret-value") {
+				t.Errorf("the refusal carries a value: %v", err)
+			}
+			if got := r.received(t); got != "" {
+				t.Errorf("a refused run delivered %q", got)
+			}
+		})
+	}
+}
+
 // TestAnInterruptStopsARunWithNothingToDeliver: a run whose context is done
 // returns its error even when every alert of the log was delivered and the
 // rest are informs, so the caller says it was interrupted.
@@ -105,6 +165,58 @@ func TestAnInterruptStopsARunWithNothingToDeliver(t *testing.T) {
 			cancel()
 			_, err := Run(ctx, r.options(false))
 			wantIs(t, "an interrupted run", err, context.Canceled)
+		})
+	}
+}
+
+// TestAnInterruptStopsARunOverAnEmptyLog: a log of no line has no record to
+// stop at, so the run asks its context before reading it.
+func TestAnInterruptStopsARunOverAnEmptyLog(t *testing.T) {
+	r := newRig(t)
+	mustDo(t, os.Truncate(filepath.Join(r.findings, findinglog.FileName), 0))
+	wantSummary(t, r.run(t, r.options(true)), 0, 0, 0, 0)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Run(ctx, r.options(false))
+	wantIs(t, "an interrupted run over an empty log", err, context.Canceled)
+}
+
+// TestAnInterruptDuringARunStopsItAtTheNextRecord: an interrupt that comes
+// once the log is read, as its lines open over an alert already delivered
+// or after a delivery's mark, stops the run at the next record, though what
+// is left needs no delivery.
+func TestAnInterruptDuringARunStopsItAtTheNextRecord(t *testing.T) {
+	for name, c := range map[string]struct {
+		delivered bool
+		ops       func(cancel func()) fileOps
+	}{
+		"as the log opens": {true, func(cancel func()) fileOps {
+			return fileOps{write: osOps.write, sync: osOps.sync, openLog: func(path string) (*os.File, error) {
+				cancel()
+				return osOps.openLog(path)
+			}}
+		}},
+		"after a delivery's mark": {false, func(cancel func()) fileOps {
+			return fileOps{write: func(f *os.File, b []byte) (int, error) {
+				n, err := f.Write(b)
+				cancel()
+				return n, err
+			}, sync: osOps.sync, openLog: osOps.openLog}
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t)
+			r.write(t, finding(idA, confirmed, alert), finding(idB, confirmed, inform))
+			if c.delivered {
+				wantSummary(t, r.run(t, r.options(true)), 1, 0, 0, 1)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			s, err := run(ctx, r.options(!c.delivered), c.ops(cancel))
+			wantIs(t, "an interrupted run", err, context.Canceled)
+			if s.Inform != 0 || s.AlreadyDelivered != 0 {
+				t.Errorf("the run went on past the interrupt: %s", describe(s))
+			}
 		})
 	}
 }

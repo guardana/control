@@ -19,16 +19,16 @@ import (
 const (
 	notifyName = "notify"
 	notifyForm = "--findings <dir> --state <dir> [--init] [--timeout <duration>]\n" +
-		"      -- <program> [<arg>]..."
+		"      [--env <name>]... -- <program> [<arg>]..."
 	notifyUsage = "takes --findings and --state once each, then -- and the program to deliver to"
 )
 
 const defaultNotifyTimeout = 30 * time.Second
 
 type notifyArgs struct {
-	findings, state valueList
-	init            bool
-	timeout         time.Duration
+	findings, state, env valueList
+	init                 bool
+	timeout              time.Duration
 }
 
 func notifyFlags(command string, out io.Writer) (*flag.FlagSet, *notifyArgs) {
@@ -38,6 +38,7 @@ func notifyFlags(command string, out io.Writer) (*flag.FlagSet, *notifyArgs) {
 	flags.Var(&a.state, "state", "the state `dir`, owner-only, that names what was delivered; given once")
 	flags.BoolVar(&a.init, "init", false, "start a state in a directory that holds none, delivering every alert again")
 	flags.DurationVar(&a.timeout, "timeout", defaultNotifyTimeout, "how long one delivery may run before its process group is killed")
+	flags.Var(&a.env, "env", "pass the variable `name` of this environment, which must be set, to the program; repeatable")
 	return flags, a
 }
 
@@ -97,7 +98,7 @@ func notifyOptions(args []string) (notify.Options, error) {
 	}
 	return notify.Options{
 		FindingsDir: a.findings[0], StateDir: a.state[0], Init: a.init,
-		Program: args[sep+1], Args: args[sep+2:], Timeout: a.timeout,
+		Program: args[sep+1], Args: args[sep+2:], Timeout: a.timeout, Env: a.env,
 	}, nil
 }
 

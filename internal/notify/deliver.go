@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"time"
 )
 
@@ -40,11 +41,11 @@ func (in *lineIn) WriteTo(w io.Writer) (int64, error) {
 }
 
 // programEnv is the program's whole environment: each variable of baseEnv
-// this process has. It is never nil, since a nil environment is exec's
-// signal to pass this process's whole one.
-func programEnv() []string {
+// and of names this process has. It is never nil, since a nil environment
+// is exec's signal to pass this process's whole one.
+func programEnv(names []string) []string {
 	env := []string{}
-	for _, name := range baseEnv {
+	for _, name := range append(slices.Clone(baseEnv), names...) {
 		if value, ok := os.LookupEnv(name); ok {
 			env = append(env, name+"="+value)
 		}
@@ -65,7 +66,7 @@ func deliver(ctx context.Context, o Options, line []byte) error {
 	//nolint:gosec // G204: the operator names the program and its arguments, and no shell runs them
 	cmd := exec.CommandContext(ctx, o.Program, o.Args...)
 	in := &lineIn{r: programInput(line)}
-	cmd.Stdin, cmd.Env = in, programEnv()
+	cmd.Stdin, cmd.Env = in, programEnv(o.Env)
 	cmd.Stdout, cmd.Stderr = o.Stdout, o.Stderr
 	cmd.WaitDelay = waitDelay
 	ownGroup(cmd)

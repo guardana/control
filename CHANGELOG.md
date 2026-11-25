@@ -30,6 +30,14 @@ verify one.
   naming the member. Add the project the run's record names. The format
   stays `0.1`, `experimental`
   ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
+- **Breaking:** `notify` runs the program with only `PATH`, `HOME`, `LANG`,
+  `LC_ALL`, `TMPDIR` and `USER` of its own environment, and with each
+  variable a new, repeatable `--env <name>` names; a name not set is refused
+  with exit 2 before any program runs, and no value is printed. The program
+  got the whole environment, a credential included. A program that reads a
+  token, a proxy or a certificate path from its environment no longer gets
+  it, and may still exit 0: name each variable it needs with `--env`
+  ([supervision](docs/reference/supervision.md#notify)).
 
 ### Added
 
@@ -361,9 +369,6 @@ verify one.
 - `notify` counts an alert whose line could not be written to the program,
   its standard input closed first, as a failed delivery; it marked the alert
   delivered when the program then exited 0.
-- `notify` runs the program with only `PATH`, `HOME`, `LANG`, `LC_ALL`,
-  `TMPDIR` and `USER` of its own environment; the program got all of it, a
-  credential included.
 - `notify` exits 1 on an interrupt while the log held only delivered alerts
   and informs, and when the log ends in a write no report closed and no
   writer holds, naming its bytes; both exited 0.
