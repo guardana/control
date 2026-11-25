@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"errors"
 	"flag"
@@ -101,7 +102,9 @@ func routeSign(keyPath, out, document string, stdout, stderr io.Writer) int {
 		return fail(stderr, routeSignName, err)
 	}
 	beforeOutReplaced(out)
-	if err := ondisk.ReplaceJudged(filepath.Dir(out), filepath.Base(out), body, routeFileMode, judged); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), outLockWait)
+	defer cancel()
+	if err := ondisk.ReplaceJudged(ctx, filepath.Dir(out), filepath.Base(out), body, routeFileMode, judged); err != nil {
 		return fail(stderr, routeSignName, fmt.Errorf("--out %s: %w", out, err))
 	}
 	lines := "route_id: " + oneLine(route.ID()) + "\n" +

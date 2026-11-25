@@ -70,7 +70,8 @@ whatever `a/link` points at. `sign`, `renew` and `operators roster sign`
 replace only the `--out` they judged, by a swap, refusing an existing one on
 file systems without it; a failed sync after it is reported, the file
 perhaps in place. The file's lock holds off this program's writers, not
-others.
+others; a reader holding one delays the write up to ten seconds, then
+nothing is written.
 
 The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits
@@ -88,8 +89,8 @@ to the digest; the listing says so. An incomplete listing exits 1 naming
 what it could not read. Writing nothing, it lists the plane's directory from
 a signed operator's account.
 
-A claim is written whether or not a
-plane runs, and exit 0 either way: the record waits for the next
+A claim is written, exit 0, whether or not a
+plane runs: the record waits for the next
 plane. Where no plane holds the directory they say so on stderr: no held
 call waits for the answer, since a hold does not outlive its plane, and a
 plane that keeps a hold journal records it on that call's trail as too late.
@@ -99,9 +100,8 @@ an approver answered already, one past its expiry, and an approver id or a
 reason over its bound — each on its own line, naming what to do about it.
 
 The `pause` commands write and read the pause file a plane names in
-`pause.file` ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)), and
-[concepts/enforcement-modes.md](../concepts/enforcement-modes.md) says what a
-pause does to a call. `pause init` creates the file, pausing nothing, and
+`pause.file` ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)).
+`pause init` creates the file, pausing nothing, and
 refuses a name that is taken. `pause add` takes exactly one scope: `--global`;
 `--provider <p>`, an upstream by its configured name; `--action <k>`
 (`tool`, `prompt` or `resource`) with `--provider <p>`, and for a tool
@@ -118,8 +118,8 @@ commands as that user. They refuse, writing nothing, a file or directory the gro
 others may write or another account owns, a link, a file the plane would
 refuse to read, a second scope or none, a name, a reason or a scope the file
 cannot hold, and a 65th entry, each on one line that does not repeat the
-value. A writer waits up to ten seconds for another writer's lock; a
-running plane takes none. A pause blocks every call not yet handed out
+value. A writer waits up to ten seconds for any lock, then writes nothing;
+a running plane takes none. A pause blocks every call not yet handed out
 when the plane reads it, within one `pause.poll_interval`; it cancels
 nothing already running.
 

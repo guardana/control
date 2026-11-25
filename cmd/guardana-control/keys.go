@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
@@ -145,7 +146,9 @@ func sign(keyPath, out, document string, now time.Time, stdout, stderr io.Writer
 		return fail(stderr, signName, err)
 	}
 	beforeOutReplaced(out)
-	if err := policykey.WriteBundleOver(out, b, judged); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), outLockWait)
+	defer cancel()
+	if err := policykey.WriteBundleOver(ctx, out, b, judged); err != nil {
 		return fail(stderr, signName, fmt.Errorf("--out %s: %w", out, err))
 	}
 	lines := "bundle_id: " + oneLine(snap.Ref().GetBundleId()) + "\n" +
@@ -163,6 +166,11 @@ func sign(keyPath, out, document string, now time.Time, stdout, stderr io.Writer
 // beforeOutReplaced, when a test sets it, runs once a command judged its
 // output for the last time, just before the new file takes the name.
 var beforeOutReplaced = func(string) {}
+
+// outLockWait bounds how long policy sign, route sign and supervise --view
+// wait for another holder's lock of the output file they replace. A test
+// shortens it.
+var outLockWait = 10 * time.Second
 
 // checkOut refuses an output path whose directory is missing, one that would
 // replace the key or the document, by whatever spelling or link reaches the

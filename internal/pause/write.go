@@ -149,7 +149,8 @@ func List(path string) (Listing, error) {
 // nil, and otherwise signed with s at the next serial, the plane, the
 // tenant, the project and the file kept, returning what it signed. A file the plane would
 // refuse is refused here too, rather than rewritten into one it reads, and so
-// is a signed write to an unsigned file and the reverse.
+// is a signed write to an unsigned file and the reverse. ctx bounds every
+// wait for a lock: the directory's, and a signed write's of the file.
 func update(ctx context.Context, path string, s *Signer, change func(Document) (Document, error)) (SignedDocument, error) {
 	var signed SignedDocument
 	err := locked(ctx, path, func(root *os.Root) error {
@@ -177,7 +178,7 @@ func update(ctx context.Context, path string, s *Signer, change func(Document) (
 			}
 			return files.ReplaceIn(root, filepath.Base(path), body, fileMode)
 		}
-		signed, err = replaceSigned(root, path, raw, *f.signed, next, *s)
+		signed, err = replaceSigned(ctx, root, path, raw, *f.signed, next, *s)
 		return err
 	})
 	return signed, err
@@ -232,7 +233,7 @@ func Resign(ctx context.Context, path, plane string, s Signer) (SignedDocument, 
 			return err
 		}
 		from.Body.PlaneID = plane
-		signed, err = replaceSigned(root, path, raw, from, from.Body.Document, s)
+		signed, err = replaceSigned(ctx, root, path, raw, from, from.Body.Document, s)
 		return err
 	})
 	return signed, err
@@ -262,7 +263,7 @@ func decodeAny(raw []byte) (Signed, error) {
 // the file through root, refusing one that is no longer raw, the bytes the write
 // began from: a writer that skipped the lock would otherwise lose its entries
 // unseen. It returns the header and the entries it signed.
-func replaceSigned(root *os.Root, path string, raw []byte, from Signed, next Document, s Signer) (SignedDocument, error) {
+func replaceSigned(ctx context.Context, root *os.Root, path string, raw []byte, from Signed, next Document, s Signer) (SignedDocument, error) {
 	h := from.Body.Header
 	if h.Serial >= policy.MaxSerial {
 		return SignedDocument{}, fmt.Errorf("%w: %d", ErrSerial, h.Serial)
@@ -282,7 +283,7 @@ func replaceSigned(root *os.Root, path string, raw []byte, from Signed, next Doc
 	if beforeRename != nil {
 		beforeRename()
 	}
-	if err := files.ReplaceJudgedIn(root, filepath.Base(path), body, signedFileMode, judged); err != nil {
+	if err := files.ReplaceJudgedIn(ctx, root, filepath.Base(path), body, signedFileMode, judged); err != nil {
 		if errors.Is(err, files.ErrNotJudged) {
 			err = fmt.Errorf("%w: %s; it holds what the other writer put there, so read it and write again: %w", ErrChanged, path, err)
 		}

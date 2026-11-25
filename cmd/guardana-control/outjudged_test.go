@@ -42,49 +42,7 @@ func meddleBeforeReplace(t *testing.T, meddle func()) {
 // control is each command over the output it judged.
 func TestACommandReplacesOnlyTheOutputItJudged(t *testing.T) {
 	const unrelated = "an unrelated file\n"
-	cases := map[string]func(t *testing.T) (out string, run func() (int, string)){
-		"policy sign": func(t *testing.T) (string, func() (int, string)) {
-			tr := newSignTree(t)
-			if code, _, stderr := invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, tr.doc); code != exitOK {
-				t.Fatalf("the first sign: %d %q", code, stderr)
-			}
-			return tr.out, func() (int, string) {
-				code, _, stderr := invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, tr.doc)
-				return code, stderr
-			}
-		},
-		"route sign": func(t *testing.T) (string, func() (int, string)) {
-			tr := newStopTree(t)
-			doc := filepath.Join(tr.dir, "route.json")
-			writeFixture(t, doc, routeDoc(seeded(0x4c), 2))
-			return tr.route, func() (int, string) {
-				code, _, stderr := invoke(t, signArgs(tr.routeKey, tr.route, doc)...)
-				return code, stderr
-			}
-		},
-		"roster sign": func(t *testing.T) (string, func() (int, string)) {
-			tr := newRosterTree(t)
-			now := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
-			if code, _, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now); code != exitOK {
-				t.Fatalf("the first signing: %d %q", code, stderr)
-			}
-			writeFixture(t, tr.source, strings.Replace(rosterSource(seeded(0x61).Public().(ed25519.PublicKey)), `"serial":3`, `"serial":4`, 1))
-			return tr.out, func() (int, string) {
-				code, _, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now.Add(time.Minute))
-				return code, stderr
-			}
-		},
-		"policy renew": func(t *testing.T) (string, func() (int, string)) {
-			r := newRenewTree(t)
-			renewed(t, r, r.bundle, 3)
-			return r.out, func() (int, string) {
-				var stderr bytes.Buffer
-				code := renew(r.paths(), time.Now().Add(time.Second), &bytes.Buffer{}, &stderr)
-				return code, stderr.String()
-			}
-		},
-	}
-	for name, setup := range cases {
+	for name, setup := range outWriters {
 		t.Run(name, func(t *testing.T) {
 			out, run := setup(t)
 			meddleBeforeReplace(t, func() { renameOver(t, out, unrelated) })
@@ -101,6 +59,51 @@ func TestACommandReplacesOnlyTheOutputItJudged(t *testing.T) {
 			}
 		})
 	}
+}
+
+// outWriters sets up each command that replaces an earlier output of its own
+// kind at --out, and returns that path and a run of the command over it.
+var outWriters = map[string]func(t *testing.T) (out string, run func() (int, string)){
+	"policy sign": func(t *testing.T) (string, func() (int, string)) {
+		tr := newSignTree(t)
+		if code, _, stderr := invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, tr.doc); code != exitOK {
+			t.Fatalf("the first sign: %d %q", code, stderr)
+		}
+		return tr.out, func() (int, string) {
+			code, _, stderr := invoke(t, "policy", "sign", "--key", tr.key, "--out", tr.out, tr.doc)
+			return code, stderr
+		}
+	},
+	"route sign": func(t *testing.T) (string, func() (int, string)) {
+		tr := newStopTree(t)
+		doc := filepath.Join(tr.dir, "route.json")
+		writeFixture(t, doc, routeDoc(seeded(0x4c), 2))
+		return tr.route, func() (int, string) {
+			code, _, stderr := invoke(t, signArgs(tr.routeKey, tr.route, doc)...)
+			return code, stderr
+		}
+	},
+	"roster sign": func(t *testing.T) (string, func() (int, string)) {
+		tr := newRosterTree(t)
+		now := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
+		if code, _, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now); code != exitOK {
+			t.Fatalf("the first signing: %d %q", code, stderr)
+		}
+		writeFixture(t, tr.source, strings.Replace(rosterSource(seeded(0x61).Public().(ed25519.PublicKey)), `"serial":3`, `"serial":4`, 1))
+		return tr.out, func() (int, string) {
+			code, _, stderr := rosterSignAt(t, tr, trust.DefaultLifetime, now.Add(time.Minute))
+			return code, stderr
+		}
+	},
+	"policy renew": func(t *testing.T) (string, func() (int, string)) {
+		r := newRenewTree(t)
+		renewed(t, r, r.bundle, 3)
+		return r.out, func() (int, string) {
+			var stderr bytes.Buffer
+			code := renew(r.paths(), time.Now().Add(time.Second), &bytes.Buffer{}, &stderr)
+			return code, stderr.String()
+		}
+	},
 }
 
 // TestTwoRenewsOfOneOutUnderTwoFloorsKeepTheNewer: a renew whose check of

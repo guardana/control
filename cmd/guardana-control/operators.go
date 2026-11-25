@@ -122,7 +122,8 @@ func rosterSign(v rosterSignValues, source string, now time.Time, stdout, stderr
 }
 
 // rosterLockWait bounds how long roster sign waits for another signer's lock
-// on the output directory. A test shortens it.
+// on the output directory and, within what is left of it, for any lock of
+// --out. A test shortens it.
 var rosterLockWait = 10 * time.Second
 
 // afterRosterLock runs once replaceRoster holds the directory's lock, before
@@ -164,7 +165,7 @@ func replaceRoster(out string, read *trust.Envelope, next trust.Document, key ed
 		return fmt.Errorf("--out %s changed since roster sign first read it; nothing was written, so read it and sign again", out)
 	}
 	beforeOutReplaced(out)
-	if err := ondisk.ReplaceJudgedIn(root, filepath.Base(out), body, rosterFileMode, judged); err != nil {
+	if err := ondisk.ReplaceJudgedIn(ctx, root, filepath.Base(out), body, rosterFileMode, judged); err != nil {
 		return fmt.Errorf("--out %s: %w", out, err)
 	}
 	return nil

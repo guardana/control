@@ -2,6 +2,7 @@ package policykey
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -269,9 +270,10 @@ func ReadStatementOf(path string, judged fs.FileInfo) (policy.StatementEnvelope,
 // a regular file holding a freshness statement, and that entry only, and
 // refuses anything else there, a key, a bundle, a directory and a link among
 // them, with ErrStatementOut. An envelope of another payload type is
-// policy.ErrStatementPayloadType.
-func WriteStatement(path string, env policy.StatementEnvelope) error {
-	return writeStatement(path, env, func(held fs.FileInfo) (fs.FileInfo, error) { return held, nil })
+// policy.ErrStatementPayloadType. It waits for a lock of the file another
+// process holds until ctx ends, as files.ReplaceJudgedIn does.
+func WriteStatement(ctx context.Context, path string, env policy.StatementEnvelope) error {
+	return writeStatement(ctx, path, env, func(held fs.FileInfo) (fs.FileInfo, error) { return held, nil })
 }
 
 // WriteStatementOver is WriteStatement that replaces only the entry judged
@@ -279,8 +281,8 @@ func WriteStatement(path string, env policy.StatementEnvelope) error {
 // where nothing stands at path: one put there since, a statement among
 // them, is refused with files.ErrNotJudged and left as it is, and
 // files.ErrNothingWritten says when nothing was written.
-func WriteStatementOver(path string, env policy.StatementEnvelope, judged fs.FileInfo) error {
-	return writeStatement(path, env, func(held fs.FileInfo) (fs.FileInfo, error) {
+func WriteStatementOver(ctx context.Context, path string, env policy.StatementEnvelope, judged fs.FileInfo) error {
+	return writeStatement(ctx, path, env, func(held fs.FileInfo) (fs.FileInfo, error) {
 		if (held == nil) != (judged == nil) || held != nil && !files.SameEntry(held, judged) {
 			return nil, fmt.Errorf("%s: %w: %w", filepath.Base(path), files.ErrNotJudged, files.ErrNothingWritten)
 		}
@@ -290,7 +292,7 @@ func WriteStatementOver(path string, env policy.StatementEnvelope, judged fs.Fil
 
 // writeStatement writes env to path over the entry over returns, given the
 // entry checkStatementOut judged there.
-func writeStatement(path string, env policy.StatementEnvelope, over func(held fs.FileInfo) (fs.FileInfo, error)) error {
+func writeStatement(ctx context.Context, path string, env policy.StatementEnvelope, over func(held fs.FileInfo) (fs.FileInfo, error)) error {
 	if env.PayloadType != bundle.StatementPayloadType {
 		return policy.ErrStatementPayloadType
 	}
@@ -310,7 +312,7 @@ func writeStatement(path string, env policy.StatementEnvelope, over func(held fs
 	}
 	if err == nil {
 		beforeStatementReplaced()
-		err = files.ReplaceJudgedIn(root, name, raw, 0o644, held)
+		err = files.ReplaceJudgedIn(ctx, root, name, raw, 0o644, held)
 	}
 	return errors.Join(err, root.Close())
 }

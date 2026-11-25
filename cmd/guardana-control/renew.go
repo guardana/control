@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"errors"
 	"flag"
@@ -59,7 +60,8 @@ const maxPublicKeyFileBytes = 1 << 10
 const publicLineBytes = 44
 
 // floorLockWait bounds how long a command waits for another holder of the
-// floor directory's lock. A test shortens it.
+// floor directory's lock; renew waits for any lock of --out within what is
+// left of it. A test shortens it.
 var floorLockWait = 10 * time.Second
 
 // renewPaths is what renew is told.
@@ -177,9 +179,9 @@ var writeOut = policykey.WriteStatementOver
 // write says the statement was written.
 func raiseAndWrite(floor, out string, s signed, issuedAt time.Time) error {
 	written := false
-	err := raiseSignerFloor(floor, s.st, issuedAt, func() error {
+	err := raiseSignerFloor(floor, s.st, issuedAt, func(ctx context.Context) error {
 		afterRaise()
-		if err := writeJudged(out, s); err != nil {
+		if err := writeJudged(ctx, out, s); err != nil {
 			return err
 		}
 		written = true
@@ -197,7 +199,7 @@ func raiseAndWrite(floor, out string, s signed, issuedAt time.Time) error {
 // write refused with nothing written judges out again, up to outAttempts
 // times, and any other failure ends the renew with its error, which names a
 // file it left.
-func writeJudged(out string, s signed) error {
+func writeJudged(ctx context.Context, out string, s signed) error {
 	var err error
 	for range outAttempts {
 		var judged fs.FileInfo
@@ -208,7 +210,7 @@ func writeJudged(out string, s signed) error {
 			return err
 		}
 		beforeOutReplaced(out)
-		if err = writeOut(out, s.env, judged); err == nil {
+		if err = writeOut(ctx, out, s.env, judged); err == nil {
 			return nil
 		}
 		err = fmt.Errorf("--out %s: %w; the signer floor was raised to the statement", out, err)

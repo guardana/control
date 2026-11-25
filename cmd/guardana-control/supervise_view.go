@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -85,7 +86,9 @@ func writeView(out string, page []byte) error {
 		return err
 	}
 	beforeOutReplaced(out)
-	if err := ondisk.ReplaceJudged(filepath.Dir(out), filepath.Base(out), page, viewFileMode, judged); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), outLockWait)
+	defer cancel()
+	if err := ondisk.ReplaceJudged(ctx, filepath.Dir(out), filepath.Base(out), page, viewFileMode, judged); err != nil {
 		return fmt.Errorf("--view %s: %w", out, err)
 	}
 	return nil

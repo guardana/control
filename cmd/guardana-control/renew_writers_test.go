@@ -119,12 +119,12 @@ func TestARenewWhoseWriteLeftAFileStopsAndNamesIt(t *testing.T) {
 			newer.bundle = filepath.Join(r.dir, "newer.bundle")
 			writeBundle(t, newer.bundle, renewDocument(4, "allow-reads"), r.bundleSigner)
 			writes := 0
-			writeOutOver(t, func(path string, env policy.StatementEnvelope, judged fs.FileInfo) error {
+			writeOutOver(t, func(ctx context.Context, path string, env policy.StatementEnvelope, judged fs.FileInfo) error {
 				writes++
 				if writes == 1 {
 					return c.refusal
 				}
-				return realWriteOut(path, env, judged)
+				return realWriteOut(ctx, path, env, judged)
 			})
 			var stderr bytes.Buffer
 			code := renew(newer, time.Now().Add(time.Second), &bytes.Buffer{}, &stderr)
@@ -142,7 +142,7 @@ func TestARenewWhoseWriteLeftAFileStopsAndNamesIt(t *testing.T) {
 var realWriteOut = writeOut
 
 // writeOutOver sets the write renew makes of --out, for the test's length.
-func writeOutOver(t *testing.T, f func(string, policy.StatementEnvelope, fs.FileInfo) error) {
+func writeOutOver(t *testing.T, f func(context.Context, string, policy.StatementEnvelope, fs.FileInfo) error) {
 	t.Helper()
 	writeOut = f
 	t.Cleanup(func() { writeOut = realWriteOut })

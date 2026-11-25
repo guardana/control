@@ -3,11 +3,17 @@
 package files
 
 import (
+	"context"
 	"errors"
 	"os"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
+
+// lockRetry is how often a writer tries a lock again while another open of
+// the file holds one.
+const lockRetry = 10 * time.Millisecond
 
 // openJudged opens the entry at name in the directory root holds for
 // reading, without following a link or waiting on a pipe; a link at the
@@ -32,12 +38,24 @@ func openJudged(root *os.Root, name string) (*os.File, error) {
 	return f, nil
 }
 
-// lockFile takes an exclusive flock of f, waiting while another open of the
-// file holds one; closing f lets it go.
-func lockFile(f *os.File) error {
+// lockFile takes an exclusive flock of f, trying again while another open of
+// the file holds one, and answers ErrLockHeld once ctx ends first; closing f
+// lets the lock go.
+func lockFile(ctx context.Context, f *os.File) error {
 	for {
-		if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); !errors.Is(err, unix.EINTR) {
+		err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		switch {
+		case err == nil:
+			return nil
+		case errors.Is(err, unix.EINTR):
+			continue
+		case !errors.Is(err, unix.EWOULDBLOCK):
 			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ErrLockHeld
+		case <-time.After(lockRetry):
 		}
 	}
 }

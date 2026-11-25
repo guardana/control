@@ -1,6 +1,7 @@
 package files
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -60,8 +62,15 @@ const (
 	// it, so a caller may judge the name again and retry.
 	ErrNothingWritten Error = "files: nothing was written"
 	// ErrNotKept is a ReplaceJudgedIn whose new file took the name and was
-	// then replaced by a writer that takes no lock of this package.
+	// replaced before the exchange settled. Only a writer that takes no lock
+	// of this package can do that: one that does waits on the new file's
+	// lock until the exchange settled.
 	ErrNotKept Error = "files: the new file no longer holds the name"
+	// ErrLockHeld is a ReplaceJudgedIn refused, with nothing written, because
+	// another open of the judged file or of the new one held a lock of it
+	// until the caller's context ended. It is not ErrNothingWritten, since
+	// judging the name again would wait on the same lock.
+	ErrLockHeld Error = "files: another process holds a lock of the file"
 )
 
 // errLink is an open of the judged name that found a symbolic link there.
@@ -146,12 +155,12 @@ func ReplaceIn(root *os.Root, name string, body []byte, perm fs.FileMode) error 
 }
 
 // ReplaceJudged is ReplaceJudgedIn through a handle to dir.
-func ReplaceJudged(dir, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+func ReplaceJudged(ctx context.Context, dir, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return err
 	}
-	return errors.Join(ReplaceJudgedIn(root, name, body, perm, judged), root.Close())
+	return errors.Join(ReplaceJudgedIn(ctx, root, name, body, perm, judged), root.Close())
 }
 
 // ReplaceJudgedIn puts body under name in the directory root holds, with mode
@@ -159,8 +168,11 @@ func ReplaceJudged(dir, name string, body []byte, perm fs.FileMode, judged fs.Fi
 // found it, and with a nil judged only where nothing stands at name, by a
 // create that never replaces. Writers of this package serialise on an
 // exclusive flock of the judged file itself, opened without following a
-// link and held until the exchange is settled; the directory is never
-// locked, since callers hold their own lock on it. Once the lock is held,
+// link, and of the new file before it takes the name, both held until the
+// exchange is settled; the directory is never locked, since callers hold
+// their own lock on it. Any process that can read a file can hold a flock
+// of it, so a lock still held when ctx ends refuses the write with
+// ErrLockHeld, nothing written. Once the judged file's lock is held,
 // the file and the name are judged again, so a writer that waited while
 // another replaced the file is refused with ErrNotJudged and
 // ErrNothingWritten. Another entry at the name, a file, a link or a
@@ -168,15 +180,16 @@ func ReplaceJudged(dir, name string, body []byte, perm fs.FileMode, judged fs.Fi
 // regular file is refused with ErrNotRegular. It answers nil only while the
 // name holds its new file once the exchange is settled.
 //
-// The lock binds the writers of this program only. Another program that
+// The locks bind the writers of this program only. Another program that
 // writes the name takes no such lock; what it puts there between the second
 // judgement and the exchange is exchanged back, but a reader of the name in
 // that instant reads the new file. An exchange back that fails is
 // ErrNotPutBack, naming where the entry is; one whose name changed again in
 // between leaves what stood there under the temporary name the error names;
-// a new file replaced after it took the name is ErrNotKept. A platform or
-// file system with no exchange refuses with ErrNoExchange.
-func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+// a new file such a program replaced before the exchange settled is
+// ErrNotKept. A platform or file system with no exchange refuses with
+// ErrNoExchange.
+func ReplaceJudgedIn(ctx context.Context, root *os.Root, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
 	if !oneName(name) {
 		return fmt.Errorf("%w: %q", ErrNotOneName, name)
 	}
@@ -197,15 +210,27 @@ func ReplaceJudgedIn(root *os.Root, name string, body []byte, perm fs.FileMode, 
 	if err != nil {
 		return err
 	}
-	beforeJudgedLocked()
-	if err := lockFile(held); err != nil {
-		return errors.Join(fmt.Errorf("files: locking %q: %w", name, err), held.Close())
+	beforeLocked(name)
+	if err := lockNamed(ctx, held, strconv.Quote(name)); err != nil {
+		return errors.Join(err, held.Close())
 	}
-	return errors.Join(replaceHeld(root, held, name, body, perm, judged), held.Close())
+	return errors.Join(replaceHeld(ctx, root, held, name, body, perm, judged), held.Close())
+}
+
+// lockNamed takes f's lock as lockFile does, naming the file what describes
+// in a refusal.
+func lockNamed(ctx context.Context, f *os.File, what string) error {
+	switch err := lockFile(ctx, f); {
+	case errors.Is(err, ErrLockHeld):
+		return fmt.Errorf("%w %s, and the wait for it ended (%w), so nothing was written", err, what, context.Cause(ctx))
+	case err != nil:
+		return fmt.Errorf("files: locking %s: %w", what, err)
+	}
+	return nil
 }
 
 // replaceHeld is ReplaceJudgedIn once held, the file at name, is locked.
-func replaceHeld(root *os.Root, held *os.File, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
+func replaceHeld(ctx context.Context, root *os.Root, held *os.File, name string, body []byte, perm fs.FileMode, judged fs.FileInfo) error {
 	info, err := held.Stat()
 	if err != nil {
 		return err
@@ -220,7 +245,27 @@ func replaceHeld(root *os.Root, held *os.File, name string, body []byte, perm fs
 	if err != nil {
 		return err
 	}
-	written, err := root.Lstat(tmp)
+	fresh, err := openJudged(root, tmp)
+	if err != nil {
+		return errors.Join(err, root.Remove(tmp))
+	}
+	beforeLocked(tmp)
+	err = lockNamed(ctx, fresh, fmt.Sprintf("%q, the new file for %q", tmp, name))
+	if err == nil {
+		err = exchangeLocked(root, fresh, name, tmp, judged)
+	} else {
+		err = errors.Join(err, root.Remove(tmp))
+	}
+	return errors.Join(err, fresh.Close())
+}
+
+// exchangeLocked exchanges tmp, the new file fresh holds locked, with name,
+// and settles the exchange or puts back what came out of name. A writer of
+// this package that judged the new file once it took the name waits on
+// fresh's lock until then, so it never replaces the new file before this
+// writer judged that the name holds it.
+func exchangeLocked(root *os.Root, fresh *os.File, name, tmp string, judged fs.FileInfo) error {
+	written, err := fresh.Stat()
 	if err != nil {
 		return errors.Join(err, root.Remove(tmp))
 	}
@@ -296,9 +341,9 @@ func putBack(root *os.Root, name, tmp string, written fs.FileInfo) error {
 // before what came out is compared with the entry judged.
 var betweenExchanges = func(*os.Root, string) {}
 
-// beforeJudgedLocked runs, in a test, once the judged file is open and
-// before its lock is taken.
-var beforeJudgedLocked = func() {}
+// beforeLocked runs, in a test, once the file a lock is taken of is open
+// under name and before the lock is taken.
+var beforeLocked = func(string) {}
 
 // oneName reports whether name is one entry of a directory, which the raw
 // exchange below takes as given, past the confinement os.Root keeps.

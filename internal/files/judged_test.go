@@ -38,7 +38,7 @@ func TestReplaceJudgedReplacesOnlyTheFileJudged(t *testing.T) {
 	out := filepath.Join(dir, "out")
 	writeFile(t, out, []byte("judged"), 0o600)
 	judged := lstat(t, out)
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged); err != nil {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, judged); err != nil {
 		t.Fatalf("the control, the judged file still there: %v", err)
 	}
 	if got := readBody(t, out); got != "new" || mode(t, out) != 0o644 {
@@ -50,7 +50,7 @@ func TestReplaceJudgedReplacesOnlyTheFileJudged(t *testing.T) {
 	if err := os.Rename(filepath.Join(dir, "unrelated"), out); err != nil {
 		t.Fatal(err)
 	}
-	err := files.ReplaceJudged(dir, "out", []byte("newer"), 0o644, judged)
+	err := files.ReplaceJudged(t.Context(), dir, "out", []byte("newer"), 0o644, judged)
 	if !errors.Is(err, files.ErrNotJudged) {
 		t.Errorf("a replace over a file renamed in after the judgement = %v, want ErrNotJudged", err)
 	}
@@ -74,19 +74,19 @@ func TestReplaceJudgedRefusesAFileGoneOrComeSinceTheJudgement(t *testing.T) {
 	if err := os.Remove(out); err != nil {
 		t.Fatal(err)
 	}
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
 		t.Errorf("a replace of a file gone since the judgement = %v, want ErrNotJudged", err)
 	}
 	if got := entries(t, dir); len(got) != 0 {
 		t.Errorf("the directory holds %v, want nothing", got)
 	}
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, nil); err != nil {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, nil); err != nil {
 		t.Fatalf("the control, a name judged absent and still absent: %v", err)
 	}
 	if got := readBody(t, out); got != "new" {
 		t.Errorf("the name judged absent holds %q, want new", got)
 	}
-	if err := files.ReplaceJudged(dir, "out", []byte("newer"), 0o644, nil); !errors.Is(err, files.ErrNotJudged) {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("newer"), 0o644, nil); !errors.Is(err, files.ErrNotJudged) {
 		t.Errorf("a name judged absent that a file took since = %v, want ErrNotJudged", err)
 	}
 	if got := readBody(t, out); got != "new" {
@@ -112,14 +112,14 @@ func TestReplaceJudgedRefusesANameThatIsNotOneEntry(t *testing.T) {
 	}
 	defer func() { _ = root.Close() }()
 	for _, name := range []string{"../victim", "./out", "x/../out", "", ".", ".."} {
-		if err := files.ReplaceJudgedIn(root, name, []byte("new"), 0o644, lstat(t, victim)); !errors.Is(err, files.ErrNotOneName) {
+		if err := files.ReplaceJudgedIn(t.Context(), root, name, []byte("new"), 0o644, lstat(t, victim)); !errors.Is(err, files.ErrNotOneName) {
 			t.Errorf("ReplaceJudgedIn(%q) = %v, want ErrNotOneName", name, err)
 		}
 	}
 	if got := readBody(t, victim); got != "outside" {
 		t.Errorf("the file outside the directory now holds %q", got)
 	}
-	if err := files.ReplaceJudgedIn(root, "out", []byte("new"), 0o644, lstat(t, filepath.Join(sub, "out"))); err != nil {
+	if err := files.ReplaceJudgedIn(t.Context(), root, "out", []byte("new"), 0o644, lstat(t, filepath.Join(sub, "out"))); err != nil {
 		t.Fatalf("the control, one plain name: %v", err)
 	}
 }
@@ -139,7 +139,7 @@ func TestReplaceJudgedKeepsADirectoryAtTheName(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(out, "inside"), []byte("kept"), 0o600)
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) || !errors.Is(err, files.ErrNothingWritten) {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) || !errors.Is(err, files.ErrNothingWritten) {
 		t.Errorf("a replace over a directory at the name = %v, want ErrNotJudged with nothing written", err)
 	}
 	if info := lstat(t, out); !info.IsDir() {
@@ -163,7 +163,7 @@ func TestReplaceJudgedRefusesTheJudgedFileWrittenSince(t *testing.T) {
 	if err := os.WriteFile(out, []byte("written since the judgement"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
 		t.Errorf("a replace of the judged file written since = %v, want ErrNotJudged", err)
 	}
 	if got := readBody(t, out); got != "written since the judgement" {
@@ -192,7 +192,7 @@ func TestReplaceJudgedRefusesAFileThatReusedTheJudgedInode(t *testing.T) {
 	if reused == "" {
 		t.Skip("no inode number was reused here")
 	}
-	if err := files.ReplaceJudged(dir, "out", []byte("old"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
+	if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("old"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) {
 		t.Errorf("a file of a reused inode number at the name = %v, want ErrNotJudged", err)
 	}
 	if got := readBody(t, out); got != "a later file, never judged" {
@@ -228,7 +228,7 @@ func TestARefusedReplaceOfAnEarlierChangeIsNeverRead(t *testing.T) {
 		}
 	}()
 	for range 500 {
-		if err := files.ReplaceJudged(dir, "out", []byte("refused"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) || !errors.Is(err, files.ErrNothingWritten) {
+		if err := files.ReplaceJudged(t.Context(), dir, "out", []byte("refused"), 0o644, judged); !errors.Is(err, files.ErrNotJudged) || !errors.Is(err, files.ErrNothingWritten) {
 			t.Errorf("a replace over a file renamed in before it began = %v, want ErrNotJudged with nothing written", err)
 			break
 		}

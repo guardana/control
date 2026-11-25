@@ -32,7 +32,7 @@ func TestWritersOfOneJudgedFileLeaveOneBodyAtTheName(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					start.Wait()
-					errs[i] = files.ReplaceJudged(dir, "out", []byte(fmt.Sprintf("body-%d", i)), 0o644, judged)
+					errs[i] = files.ReplaceJudged(t.Context(), dir, "out", []byte(fmt.Sprintf("body-%d", i)), 0o644, judged)
 				}()
 			}
 			start.Done()
@@ -94,7 +94,7 @@ func TestAReplaceAnswersNilOnlyWhileTheNameHoldsItsNewFile(t *testing.T) {
 	files.BetweenExchanges(t, func(_ *os.Root, _ string) {
 		renamedIn(t, dir, "out", "the other writer's")
 	})
-	err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, judged)
+	err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, judged)
 	if !errors.Is(err, files.ErrNotKept) || errors.Is(err, files.ErrNothingWritten) {
 		t.Errorf("a replace whose new file lost the name = %v, want ErrNotKept, not ErrNothingWritten", err)
 	}
@@ -121,7 +121,7 @@ func TestReplaceJudgedRefusesAnEntryJudgedThatIsNotARegularFile(t *testing.T) {
 		what string
 		path string
 	}{{"the file it names", outside}, {"a link", out}} {
-		err := files.ReplaceJudged(dir, "out", []byte("new"), 0o644, lstat(t, judged.path))
+		err := files.ReplaceJudged(t.Context(), dir, "out", []byte("new"), 0o644, lstat(t, judged.path))
 		if !errors.Is(err, files.ErrNotJudged) && !errors.Is(err, files.ErrNotRegular) {
 			t.Errorf("a link judged as %s = %v, want a refusal", judged.what, err)
 		}
