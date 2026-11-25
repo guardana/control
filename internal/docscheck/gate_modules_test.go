@@ -175,6 +175,34 @@ func testMainThat(body, pkg string) string {
 		"func TestMain(m *testing.M) {\n\tflag.Parse()\n\t" + body + "\n\tos.Exit(m.Run())\n}\n"
 }
 
+// TestTheTestTargetsRefuseAPackageAReplaceBringsInFromTestdata: a module that
+// replaces another of the repository's modules and imports a package under
+// that module's testdata, or under a directory starting with "_", builds it,
+// while neither module's ./... tests it. go_packages_covered refuses it; the
+// same replace importing the other module's own package passes.
+func TestTheTestTargetsRefuseAPackageAReplaceBringsInFromTestdata(t *testing.T) {
+	files := func(imp string) map[string]string {
+		return map[string]string{
+			"go.mod":               stagedGoMod + "\nrequire example.com/x v0.0.0\n\nreplace example.com/x => ./xmod\n",
+			"staged.go":            "package staged\n\nimport _ \"" + imp + "\"\n",
+			"xmod/go.mod":          "module example.com/x\n\ngo 1.25\n",
+			"xmod/x.go":            "package x\n",
+			"xmod/testdata/y/y.go": "package y\n",
+			"xmod/_h/h.go":         "package h\n",
+		}
+	}
+	const covered = ". scripts/lib/go-modules.sh; go_packages_covered go ."
+	if out, err := runIn(t, stageModule(t, nil, files("example.com/x")), covered); err != nil {
+		t.Errorf("go_packages_covered over a module importing the replaced module's own package = %v:\n%s", err, out)
+	}
+	const want = "go_packages_covered: module . builds, through a replace, a package its own module's ./... leaves out: "
+	for _, imp := range []string{"example.com/x/testdata/y", "example.com/x/_h"} {
+		if out, err := runIn(t, stageModule(t, nil, files(imp)), covered); err == nil || !strings.Contains(out, want+imp) {
+			t.Errorf("go_packages_covered over a module importing %s through a replace = %v, want a refusal saying %q:\n%s", imp, err, want+imp, out)
+		}
+	}
+}
+
 // TestTheTestTargetsRefuseAModuleThatHidesAPackage: a go.mod's ignore
 // directive drops a directory from ./..., and the reporter sees only the
 // packages that ran, so the failing test planted there would pass make test

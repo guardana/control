@@ -67,9 +67,10 @@ go_modules() {
 # and every package of the module that one of those, or a package of ./...,
 # imports, since go builds that one wherever it lies, while ./... skips a
 # directory under testdata or one whose name starts with "_" or ".".
-# It also fails when the module builds code from outside the modules
-# go_modules lists, whose tests no target runs: from a vendor directory, or
-# from a directory a local replace names.
+# It also fails when the module builds code whose tests no target runs: from
+# a vendor directory, from a directory a local replace names outside the
+# modules go_modules lists, or, through a replace of one of those modules,
+# from its testdata or a directory of it whose name starts with "_" or ".".
 # Not covered: a package only a test file imports, since imports are followed
 # from the non-test build; one only a program under //go:build ignore imports;
 # and one only a file built for another platform than this run's imports.
@@ -158,6 +159,24 @@ go_packages_covered() {
     printf 'go_packages_covered: listing what the packages of module %s import failed\n' "${mod}" >&2
     return 1
   }
+  # A replaced module's ./... skips the same directories, so a package of
+  # one there, built here, is tested by neither module.
+  replaced="$(GOWORK=off "${go}" -C "${mod}" list -e -deps \
+    -f '{{if and .Module (not .Module.Main) .Module.Replace (not .Module.Replace.Version) (or .GoFiles .CgoFiles)}}{{.ImportPath}}{{"\t"}}{{.Module.Path}}{{end}}' ./... "${args[@]}")" || {
+    printf 'go_packages_covered: listing what module %s imports from replaced modules failed\n' "${mod}" >&2
+    return 1
+  }
+  missing=""
+  while IFS=$'\t' read -r old new; do
+    [[ -n "${old}" ]] || continue
+    case "/${old#"${new}"}/" in
+      */testdata/* | */_* | */.*) missing+=" ${old}" ;;
+    esac
+  done <<<"${replaced}"
+  if [[ -n "${missing}" ]]; then
+    printf "go_packages_covered: module %s builds, through a replace, a package its own module's ./... leaves out:%s\n" "${mod}" "${missing}" >&2
+    return 1
+  fi
   want="$(printf '%s\n%s\n' "${want}" "${imported}" | LC_ALL=C sort -u)"
   missing=""
   while IFS= read -r m; do

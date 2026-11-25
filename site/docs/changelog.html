@@ -663,9 +663,11 @@ release's verification.</p>
 package that holds Go files, as a <code>go.mod</code> <code>ignore</code> directive does, or a
 package the module's code imports, as one under <code>testdata</code> or a directory
 whose name starts with <code>_</code> is, and a module that builds code from a vendor
-directory or from a local <code>replace</code> target that is not one of the
-repository's modules. That code's tests did not run, and the reporter, which
-sees only the packages that ran, could not tell. Not covered: a package only
+directory, from a local <code>replace</code> target that is not one of the
+repository's modules, or, through a replace of one of them, from its
+<code>testdata</code> or a directory of it starting with <code>_</code>. That code's tests did not
+run, and the reporter, which sees only the packages that ran, could not
+tell. Not covered: a package only
 a test file, only a program under <code>//go:build ignore</code>, or only a file for
 another platform than the run's imports.</p>
 </li>

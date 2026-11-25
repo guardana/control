@@ -388,9 +388,11 @@ verify one.
   package that holds Go files, as a `go.mod` `ignore` directive does, or a
   package the module's code imports, as one under `testdata` or a directory
   whose name starts with `_` is, and a module that builds code from a vendor
-  directory or from a local `replace` target that is not one of the
-  repository's modules. That code's tests did not run, and the reporter, which
-  sees only the packages that ran, could not tell. Not covered: a package only
+  directory, from a local `replace` target that is not one of the
+  repository's modules, or, through a replace of one of them, from its
+  `testdata` or a directory of it starting with `_`. That code's tests did not
+  run, and the reporter, which sees only the packages that ran, could not
+  tell. Not covered: a package only
   a test file, only a program under `//go:build ignore`, or only a file for
   another platform than the run's imports.
 - `scripts/two-accounts.sh` builds each package's test binary into a file of
