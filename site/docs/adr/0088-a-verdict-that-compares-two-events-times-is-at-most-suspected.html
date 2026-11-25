@@ -173,8 +173,11 @@ hours for a rule with none. No writer appends a new stop of those versions.</li>
 <li>A carry that cannot keep a stop is refused, naming the stop and the
 <code>stops lift</code> that ends it. <code>stops lift</code> takes the route the list was
 written under even when it names a version <code>1</code> of the three, since a lift
-only ends a stop; the carry then goes through. The operator finds the kept
-stops with <code>stops list</code> and lifts them.</li>
+only ends a stop; the carry then goes through. A <code>reaction-route/v1alpha2</code>
+route is the exception: no lift is written under it, so a carry from such
+a list names a rule of the new route that would keep the stop, or a new
+list under a new stop list floor. The operator finds the kept stops with
+<code>stops list</code> and lifts them.</li>
 <li><code>DENIED_ACTION_RETRIED_AROUND</code> is unchanged: <code>SUSPECTED</code> at most, and
 <code>INDETERMINATE</code> while no importer stamps a call's start.</li>
 </ul>
@@ -207,7 +210,8 @@ export, and its rule table lets none of the three confirm or stop.
 carried stop of version <code>1</code> only where a rule of the route names its
 procedure at its scope, within that rule's lifetime; a carry it cannot keep
 is refused naming the lift, and the lift under the old route lets the carry
-through. <code>route sign</code>, <code>react</code> and
+through; from a <code>v1alpha2</code> route it names the rule that keeps the stop, and
+that rule carries it. <code>route sign</code>, <code>react</code> and
 the plane's route load each refuse a route naming
 <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> <code>1</code> or <code>DEADLINE_EXCEEDED</code> <code>1</code> by name, and
 <code>react</code> stops nothing for a confirmed version <code>1</code> retry already in a findings

@@ -48,8 +48,11 @@ run, an agent or a principal that did nothing the rule names.
 - A carry that cannot keep a stop is refused, naming the stop and the
   `stops lift` that ends it. `stops lift` takes the route the list was
   written under even when it names a version `1` of the three, since a lift
-  only ends a stop; the carry then goes through. The operator finds the kept
-  stops with `stops list` and lifts them.
+  only ends a stop; the carry then goes through. A `reaction-route/v1alpha2`
+  route is the exception: no lift is written under it, so a carry from such
+  a list names a rule of the new route that would keep the stop, or a new
+  list under a new stop list floor. The operator finds the kept stops with
+  `stops list` and lifts them.
 - `DENIED_ACTION_RETRIED_AROUND` is unchanged: `SUSPECTED` at most, and
   `INDETERMINATE` while no importer stamps a call's start.
 
@@ -87,7 +90,8 @@ export, and its rule table lets none of the three confirm or stop.
 carried stop of version `1` only where a rule of the route names its
 procedure at its scope, within that rule's lifetime; a carry it cannot keep
 is refused naming the lift, and the lift under the old route lets the carry
-through. `route sign`, `react` and
+through; from a `v1alpha2` route it names the rule that keeps the stop, and
+that rule carries it. `route sign`, `react` and
 the plane's route load each refuse a route naming
 `DENIED_ACTION_RETRIED_ARGUMENTS` `1` or `DEADLINE_EXCEEDED` `1` by name, and
 `react` stops nothing for a confirmed version `1` retry already in a findings

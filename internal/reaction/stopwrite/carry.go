@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -150,7 +151,7 @@ func carry(ctx context.Context, from string, fromRoute reaction.Route, dir strin
 		}
 		lines := append(append([][]byte{header}, stops...), covered...)
 		if err := writeCarried(ctx, root, dir, route, now, lines, retire); err != nil {
-			return liftFirst(err, part.list.Entries())
+			return liftFirst(err, part.list.Entries(), fromRoute.Format())
 		}
 		return nil
 	})
@@ -170,18 +171,33 @@ func writeCarried(ctx context.Context, root *os.Root, dir string, route reaction
 }
 
 // liftFirst is err, the new list's refusal, naming the stop it refused when
-// that is a stop the carry brought from entries, and the lift that ends it
-// on the list carried from: an upgrade lifts no stop, so the operator does.
-func liftFirst(err error, entries []reaction.Entry) error {
+// that is a stop the carry brought from entries, and what ends the refusal:
+// an upgrade lifts no stop, so the operator does, on the list carried from
+// under its route, of format from. No lift is written under a v1alpha2
+// route, so for its list the remedy is a rule of the new route that keeps
+// the stop, or a new list.
+func liftFirst(err error, entries []reaction.Entry, from reaction.RouteFormat) error {
 	var at *reaction.LineError
 	if !errors.As(err, &at) || !errors.Is(err, reaction.ErrStopRefused) || at.Line < 2 || at.Line-2 >= int64(len(entries)) {
 		return err
 	}
 	e := entries[at.Line-2]
 	target := e.Target()
-	return fmt.Errorf("%w: it is the stop of %s %q at line %d of the list carried from, for finding %q under rule %s %s, "+
-		"which the new route does not grant; end it there with stops lift --%s %q under the route it was written under, then carry again",
-		err, target.Scope, target.Subject, e.Line, e.FindingID, e.RuleID, e.RuleVersion, target.Scope, target.Subject)
+	refused := fmt.Sprintf("it is the stop of %s %q at line %d of the list carried from, for finding %q under rule %s %s, "+
+		"which the new route does not grant", target.Scope, target.Subject, e.Line, e.FindingID, e.RuleID, e.RuleVersion)
+	if from != reaction.FormatV1Alpha2Carry {
+		return fmt.Errorf("%w: %s; end it there with stops lift --%s %q under the route it was written under, then carry again",
+			err, refused, target.Scope, target.Subject)
+	}
+	keeps := "rule " + e.RuleID + " of"
+	if reaction.Retired(e.RuleID, e.RuleVersion) {
+		keeps = "a rule of"
+	}
+	span := int64(math.Ceil(e.ExpiresAt.Sub(e.CreatedAt).Seconds()))
+	return fmt.Errorf("%w: %s; stops lift takes no reaction-route/v1alpha2 route, so either give the new route %s procedure %q version %q "+
+		"at scope %s with expires_seconds of at least %d, sign it and carry again, or start a new list with stops init under a new "+
+		"stop list floor (stops floor init), which keeps none of the old list's stops",
+		err, refused, keeps, e.ProcedureID, e.ProcedureVersion, target.Scope, span)
 }
 
 // createRetiring is create of a new list from the old list root holds, which

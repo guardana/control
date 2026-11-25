@@ -202,7 +202,7 @@ func TestACaseIsJudgedUnderItsRunsRecordedProject(t *testing.T) {
 		ev[0].(map[string]any)["events"] = []any{}
 	})
 	failedCase(t, path, "a denied refund retried with other arguments",
-		"missing finding DENIED_ACTION_RETRIED_ARGUMENTS CONFIRMED "+rootRun+" [r2 r3]")
+		"missing finding DENIED_ACTION_RETRIED_ARGUMENTS SUSPECTED "+rootRun+" [r2 r3]")
 }
 
 // TestACasesDocumentItCannotReadIsRefused: exit 2, nothing on stdout and

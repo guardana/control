@@ -136,6 +136,27 @@ func TestAnOpenRunWaitingOnAnApprovalIsNotInDoubt(t *testing.T) {
 	}
 }
 
+// TestARunsOwnCloseDecidesWhetherItsHeldCallIsInDoubt: under inherit a
+// child's call left at its approval request is in doubt when the child is
+// closed, whatever the root's state, and waits, putting nothing in doubt,
+// when the child is open under a closed root. REPEATED_DENIAL is the rule
+// read: the rules that need the whole tree closed are unchecked either way.
+func TestARunsOwnCloseDecidesWhetherItsHeldCallIsInDoubt(t *testing.T) {
+	x := export(call{req: "r1", tool: "get_order", upstream: "shop"},
+		call{req: "c1", tool: "get_order", upstream: "shop", at: 10 * time.Second, outcome: "held", run: childRun})
+	for _, c := range []struct {
+		closed, want string
+	}{
+		{childRun, `RULE_STATE_NOT_CHECKED:request "c1" is in doubt: its end was not read`},
+		{runID, "RULE_STATE_CHECKED:"},
+	} {
+		res := treeEvaluate(t, supervise.Input{Procedure: inheritProc(t), Tree: family(c.closed), Exports: []supervise.Export{x}})
+		if got := rules(res)["REPEATED_DENIAL"]; got != c.want {
+			t.Errorf("%s closed alone: REPEATED_DENIAL is %q, want %q", c.closed, got, c.want)
+		}
+	}
+}
+
 // TestARetryDecidedForApprovalIsHeldBeforeItsRequest: the plane writes a
 // decision that requires approval before it asks for one, so a trail that
 // ends between the two may yet be approved, as one that ends after the ask.

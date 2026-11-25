@@ -168,11 +168,21 @@ upgrade, only where a rule of the new route still stops its procedure at
 its scope, for no longer than that rule allows; no new one is written. A
 carry that cannot keep a stop is refused, naming the stop and the
 <code>stops lift</code> that ends it: run it on the old list with the old route,
-which <code>stops lift</code> takes for that alone, then carry again. <code>stops list</code>
+which <code>stops lift</code> takes for that alone, then carry again. <code>stops lift</code>
+takes no <code>reaction-route/v1alpha2</code> route, so a carry from a 0.17 list
+names two other ways instead: give the new route the rule it names, at
+the stop's scope and lasting at least the stop's span, sign it and carry
+again; or start a new list with <code>stops init</code> under a new stop list floor
+(<code>stops floor init</code>), which keeps none of the old stops. <code>stops list</code>
 shows each kept stop's rule; review those and lift any you do not keep. The
 example's <code>0.2</code> route now stops on <code>RESOURCE_OUTSIDE_RUN</code>
 (<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>,
 <a href="/docs/reference/reaction">reaction</a>).</li>
+<li><strong>Breaking:</strong> a <code>procedure test</code> cases document states <code>project</code> in <code>run</code>
+and in each run of <code>tree</code>; a document without it is refused with exit 2,
+naming the member. Add the project the run's record names. The format
+stays <code>0.1</code>, <code>experimental</code>
+(<a href="/docs/guides/test-a-procedure#2-write-a-case">test a procedure</a>).</li>
 </ul>
 <h3 id="added">Added</h3>
 <ul>
@@ -198,6 +208,19 @@ approval and activates no policy
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
+<li><code>policy test</code>, <code>policy explain</code> and <code>policy compare</code> refuse a case whose
+<code>authorized_args</code> is not valid UTF-8 or holds an unpaired surrogate escape
+such as <code>\ud800</code>, naming the member. The case reader put U+FFFD in place
+of such bytes, so the kernel decided other arguments than the case wrote,
+and a case could pass <code>ALLOW</code> for bytes the kernel refuses
+(<a href="/docs/reference/policy-format#a-test-case">policy format</a>).</li>
+<li>A <code>procedure test</code> case states the project its run's record names, as
+<code>project</code> in <code>run</code> and in each run of <code>tree</code>, and is judged as <code>supervise</code>
+judges that run: events or a run of another project fail the case as
+<code>refused:</code>, and its sources are of the run's project. The case took the
+project from its events, so a case passed with a finding that <code>supervise</code>
+would refuse to make for a run recorded under another project
+(<a href="/docs/guides/test-a-procedure#2-write-a-case">test a procedure</a>).</li>
 <li><code>supervise</code> lists a step's requests, and a finding cites and keeps its
 references, in the order of the plane's times of the proposals, a tie by
 request id. It used the order in which an export first held each request,
@@ -280,11 +303,14 @@ with <code>EVIDENCE_UNAVAILABLE</code> also when its expiry has passed. Such an
 approval closed the hold as <code>APPROVAL_EXPIRED</code> before its version was
 read.</li>
 <li>A request whose end was not read, waiting on no approval or of a closed
-run, such as one an export cut after its proposal, its approval request or
-before its failure, leaves <code>REPEATED_DENIAL</code>, <code>CONTINUED_AFTER_FAILURE</code> and
-the three retry rules not checked. Only a denied request with no block
-read did; any other was checked with no finding, and a closed run could
-pass.</li>
+run, leaves <code>REPEATED_DENIAL</code>, <code>CONTINUED_AFTER_FAILURE</code> and the three
+retry rules not checked, and <code>supervise</code> exits 1. Such a request is one an
+export cut after its proposal, its approval request or before its failure,
+and also, in a whole export, one of a closed run whose approval was never
+answered: the plane ends a held request's trail only when the agent calls
+again. A request waiting on its approval on an open run puts nothing in
+doubt. Only a denied request with no block read did; any other was checked
+with no finding, and a closed run could pass.</li>
 <li>A <code>--source</code> whose descriptor does not say <code>SAMPLING_COMPLETE</code>, or one
 silent, never heard or not read, leaves <code>STEP_OUTSIDE_PROCEDURE</code> and
 <code>DENIED_ACTION_RETRIED_AROUND</code> not checked, findings kept. <code>supervise</code>
@@ -324,6 +350,78 @@ between the decision and the request confirmed it, and could stop the run.</li>
 newline that no writer holds, with <code>end_reached</code> and no <code>partial_tail</code>
 gap, so such an export no longer passes as whole
 (<a href="/docs/contracts#the-evidence-export">contracts</a>).</li>
+<li><strong>Breaking:</strong> a signed plane refuses to start, and <code>doctor</code> fails, when
+<code>records/</code> holds more than the 65,536 records a start reads to carry their
+closes; <code>guardana-control runs prune</code> archives the expired trees to bring
+it under. The start logged the cut and served, so the open record of a run
+closed past the cut, put back, was taken
+(<a href="/docs/reference/runs">runs</a>,
+<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>).</li>
+<li>A signed child's first call beside a root whose state file is gone and
+whose lock file is not leaves no <code>.seen</code>. The mark was made before the
+call was refused, so once the root's state was put back the child ran
+after its parent's close was carried.</li>
+<li>A signed child's first call whose ancestor walk reads a closed ancestor
+carries that close and is refused as <code>closed</code>. The walk took the closed
+record as a link to its parent and admitted the grandchild
+(<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>).</li>
+<li><strong>Breaking:</strong> <code>react</code> under a signed route refuses an unsigned <code>--runs</code>
+directory. The
+route's <code>--roster</code> and <code>--root-key</code> did not count as flags that judge
+records, so without <code>--tenant</code> and <code>--project</code> it took a stop's subject
+from an unsigned record.</li>
+<li><code>react</code> reads a finding's run again once it holds the stop list's lock,
+and a run closed while it waited is counted as not stopping; a run it
+cannot read then, or one naming no subject of its rule's scope, stops the
+pass. It wrote the stop from what it read
+before the wait.</li>
+<li>A signed restore takes a backed-up root whose lock file stands without its
+state as untrusted with an unknown read, as the plane does, and refuses,
+before its first write, a surviving root's lock file the join would refuse.
+It left such a root's live state as it was, and stamped floors and carried
+closes before it met the lock
+(<a href="/docs/guides/back-up-and-restore-a-plane">back up and restore</a>).</li>
+<li>A restore under the directory authority judges the backup's stop list
+against the configured route also when the live list begins with it, and
+refuses one written under a route since replaced. It kept the old list,
+which the next start refused.</li>
+<li>Signed <code>/healthz</code> and <code>doctor</code> report a stop naming another tenant's or
+project's run as unheld, not as unread, which made the reaction check
+unknown.</li>
+<li>A list of another version put in place of the one a plane accepted is
+refused naming both versions and saying to put the accepted list back, or,
+for a <code>2.0</code> list in place of a <code>3.0</code> one, to carry it with
+<code>stops init --carry</code>. The changed header was refused without either
+(<a href="/docs/reference/reaction-signed">reaction under signed</a>).</li>
+<li><code>stops lift</code> refuses, with nothing written, a lift that ends no stop of
+the list as it stands under the writer's lock, such as one signed against
+the list before another lift ended that stop.</li>
+<li>A signed start refuses a stop list its own account may write, an access
+control list among the ways, as it refuses the stops directory. Only the
+directory was judged
+(<a href="/docs/guides/set-up-signed-operators">set up signed operators</a>).</li>
+<li><code>state backup</code> makes its directories <code>0700</code> and its copies <code>0600</code> whatever
+the umask, as the guide says. A umask that took the owner's bits made them
+narrower.</li>
+<li><code>state restore</code> refuses, before its first write, a configuration where the
+temporary name a missing floor directory is built under is, or holds, a
+path the configuration names, the hold journal and the keys among them,
+compared through links and without case, also where neither name exists
+yet, so every refusal comes before the first write; the build removes there
+only a directory a build of its own left.
+Building the floor removed that path first, so a route floor named there
+was built again from the backup's lower serial, and a hold journal named
+there was lost.</li>
+<li><strong>Breaking:</strong> a signed carry takes the write bits off the list it carried
+from before it writes the new list, giving them back when that write left
+no new list in place, and <code>react</code> and <code>stops lift</code> refuse a list its owner may not
+write. Run the carry as the old list's owner: under another account it
+refuses before it writes anything. A 0.17 <code>react</code> left on the old list
+fails to write; give the list its write bits back before 0.17 uses it
+after a roll back. A stop appended to the old list after the carry reached
+a plane still serving it and was missing from the new list, whose header
+the plane's floor followed (<a href="/docs/reference/reaction-signed">reaction under signed</a>,
+<a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane from 0.17</a>).</li>
 <li><code>coverage</code> joins an <code>mcp_tool</code> path's observation only to a proposal the
 MCP adapter recorded. An enforcement API proposal with the same ids, tool
 and provider joined it too
@@ -458,6 +556,13 @@ calls that wrote it could account for.</li>
 </ul>
 <h3 id="documentation">Documentation</h3>
 <ul>
+<li>The landing page and the documentation pages share one layout: the same
+header, footer and container at every width, every landing section opening
+with the same heading block on one column split, and one rhythm on a phone.
+A documentation table whose cells are sentences now reads as a list, one
+item per row with each cell under its column's name; a compact table stays
+a table, its code breaks after a slash, and one still too wide scrolls
+inside its box.</li>
 <li>Risk references map the 2026 OWASP Top 10 lists for Agentic Applications
 and LLM Applications to project controls and tests
 (<a href="/docs/reference/risks/owasp-agentic-top-10">risk references</a>). For
