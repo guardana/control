@@ -267,6 +267,14 @@ approval although the call was then blocked; the hold now stands for a
 later retry.</p>
 </li>
 <li>
+<p>A retry whose approved answer fails the checks at its last reading before
+the spend, such as one past the expiry, is refused <code>APPROVAL_ALREADY_USED</code>
+on a trail of its own when the ledger marks the approval spent by another
+retry, and closes nothing while the ledger cannot be read. It was answered
+<code>EVIDENCE_UNAVAILABLE</code> with no trail of its own, and over a ledger that
+could not be read it closed the held trail.</p>
+</li>
+<li>
 <p>A refusal of an upstream's <code>env</code> or <code>args</code> item the configuration reader
 cannot read, such as <code>API_KEY=value&amp;x</code> or <code>--token=value&amp;x</code>, no longer
 repeats the item, which can hold a pasted credential.</p>
