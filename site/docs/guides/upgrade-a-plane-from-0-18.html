@@ -132,13 +132,12 @@
 <main id="main" class="prose">
 <h1 id="upgrade-a-plane-from-018">Upgrade a plane from 0.18</h1>
 <h2 id="when-to-use-this">When to use this</h2>
-<p>A plane ran 0.18 and is to run 0.19. No format changed its version
-(<a href="/docs/reference/versions#what-019-changed">format versions</a>), but 0.19
-refuses some routes, documents and settings 0.18 took. Every plane follows
-the first part, in its order; a plane under <code>approvals.authority: signed</code>
-also follows the second before it starts. A plane still on 0.17 takes
-<a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane from 0.17</a> with the 0.19
-binaries first, as that page says.</p>
+<p>A plane ran 0.18 and is to run 0.19. No format changed its version (<a href="/docs/reference/versions#what-019-changed">format
+versions</a>), but 0.19 refuses some
+routes, documents and settings 0.18 took. Every plane follows the first part,
+in its order; a plane under <code>approvals.authority: signed</code> also follows the
+second before it starts. For a plane on 0.17, follow <a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane from
+0.17</a> with the 0.19 binaries first.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
 <li>The plane is stopped.</li>
@@ -164,11 +163,11 @@ once, and a path as nested blocks;</li>
 <p>Under <code>signed</code> it also fails, and may fail first, on what the second part
 fixes.</p>
 <h3 id="2-take-the-deadline-and-retry-rules-out-of-the-route">2. Take the deadline and retry rules out of the route</h3>
-<p>These three rules compare two events' times, so their findings are
-<code>SUSPECTED</code> at most and stop nothing
+<p>Skip this step when the route names none of them. These three rules compare
+two events' times, so their findings are <code>SUSPECTED</code> at most and stop nothing
 (<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>).
-Skip this step when the route names none of them. A signed plane takes the
-<a href="#1-the-route-and-the-stop-list">signed route step</a> instead.</p>
+A signed plane takes the <a href="#1-the-route-and-the-stop-list">signed route step</a>
+instead.</p>
 <pre><code># 2a. Edit route.json: remove every rule naming one of the three, raise the
 # serial by one and keep the route_id. Sign it at a new path: 2c reads the
 # old route at its own.
@@ -221,8 +220,8 @@ others may write without the sticky bit
 (<a href="/docs/guides/watch-a-plane-without-a-collector">watch a plane without a collector</a>).
 Give <code>--dir</code> the directory's own path, under a parent the collector's account
 or root owns.</p>
-<p><code>collect</code> reads <code>--listen</code> as a URL: a socket path holding <code>#</code>, <code>?</code> or <code>%</code> is
-given escaped, as <code>collect</code> prints it in <code>export.endpoint</code>.</p>
+<p><code>collect</code> reads <code>--listen</code> as a URL: escape <code>#</code>, <code>?</code> or <code>%</code> in a socket path,
+as <code>collect</code> prints it in <code>export.endpoint</code>.</p>
 <h3 id="6-replace-signed-outputs-on-linux-or-macos">6. Replace signed outputs on Linux or macOS</h3>
 <p><code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>, <code>policy renew</code>,
 <code>supervise --view</code> and the signed pause writers replace an existing output by
@@ -231,10 +230,10 @@ that cannot swap, such as some network file systems, they refuse to replace
 it; a first output is written as before. Keep those
 files on a local file system of Linux or macOS.</p>
 <h3 id="7-send-a-result-hash-the-plane-takes">7. Send a result hash the plane takes</h3>
-<p>A plane serving the enforcement API refuses a <code>complete</code> whose <code>resultHash</code>
-is not <code>sha256:</code> and 64 lower-case hex digits, as malformed; send that form
-or none. 0.19's Go and Python clients check it before sending; 0.18's Python
-client did not.</p>
+<p>Send a <code>complete</code>'s <code>resultHash</code> as <code>sha256:</code> and 64 lower-case hex digits, or
+none: a plane serving the enforcement API refuses any other form as malformed.
+0.19's Go and Python clients check it before sending; 0.18's Python client did
+not.</p>
 <p>A plane not under <code>signed</code> then starts; a signed plane starts after the
 second part.</p>
 <h2 id="a-signed-plane">A signed plane</h2>
@@ -295,17 +294,17 @@ any you do not keep.</li>
 <li><code>procedure test</code> passes each cases document.</li>
 </ul>
 <h2 id="roll-back">Roll back</h2>
-<p>Stop the plane and start the 0.18 binaries. 0.18 reads the route 0.19
-signed and the list it carried, unless that list keeps a stop of one of the
-three rules: 0.18 refuses such a line and will not start on that list. In
-that case point <code>reaction.route</code> and
-<code>reaction.stops</code> back at the files you kept. The route floor holds the new
-route's serial, so make a new one with <code>policy state init --kind route --route-id &lt;route_id&gt;</code> in a new directory and name it in
-<code>reaction.floor_dir</code>. Under <code>signed</code> the stop list floor holds the carried
-list's serial as well: make a new floor with <code>stops floor init --tenant &lt;tenant&gt; --project &lt;project&gt;</code> in a new directory and name it in
+<p>Stop the plane and start the 0.18 binaries. 0.18 reads the route 0.19 signed
+and the list it carried, unless that list keeps a stop of one of the three
+rules: 0.18 refuses such a line and will not start on that list. In that case
+point <code>reaction.route</code> and <code>reaction.stops</code> back at the files you kept. Make a
+new route floor with <code>policy state init --kind route --route-id &lt;route_id&gt;</code> in
+a new directory and name it in <code>reaction.floor_dir</code>: the old one holds the new
+route's serial. Under <code>signed</code> the stop list floor holds the carried list's
+serial as well: make a new floor with <code>stops floor init --tenant &lt;tenant&gt; --project &lt;project&gt;</code> in a new directory and name it in
 <code>reaction.stops_floor_dir</code>; a floor holding no serial takes the old list. A
-signed carry left that list without its write bits: give them back as its owner
-with <code>chmod u+w</code> before 0.18's <code>react</code> writes to it.</p>
+signed carry left that list without its write bits: give them back as its
+owner with <code>chmod u+w</code> before 0.18's <code>react</code> writes to it.</p>
 <p>0.18 refuses <code>project</code> in a cases document and <code>notify --env</code>: remove both.</p>
 <p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/guides/upgrade-a-plane-from-0-18.md">docs/guides/upgrade-a-plane-from-0-18.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.18.0, and <a href="https://github.com/guardana/control/tree/v0.18.0/docs">its documentation</a> is in its tag.</p>
 </main>

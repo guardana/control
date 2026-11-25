@@ -9,13 +9,12 @@ covers: [internal/reaction/maystop.go, internal/reaction/permits.go, internal/re
 
 ## When to use this
 
-A plane ran 0.18 and is to run 0.19. No format changed its version
-([format versions](../reference/versions.md#what-019-changed)), but 0.19
-refuses some routes, documents and settings 0.18 took. Every plane follows
-the first part, in its order; a plane under `approvals.authority: signed`
-also follows the second before it starts. A plane still on 0.17 takes
-[upgrade a plane from 0.17](upgrade-a-plane-from-0-17.md) with the 0.19
-binaries first, as that page says.
+A plane ran 0.18 and is to run 0.19. No format changed its version ([format
+versions](../reference/versions.md#what-019-changed)), but 0.19 refuses some
+routes, documents and settings 0.18 took. Every plane follows the first part,
+in its order; a plane under `approvals.authority: signed` also follows the
+second before it starts. For a plane on 0.17, follow [upgrade a plane from
+0.17](upgrade-a-plane-from-0-17.md) with the 0.19 binaries first.
 
 ## Prerequisites
 
@@ -48,11 +47,11 @@ fixes.
 
 ### 2. Take the deadline and retry rules out of the route
 
-These three rules compare two events' times, so their findings are
-`SUSPECTED` at most and stop nothing
+Skip this step when the route names none of them. These three rules compare
+two events' times, so their findings are `SUSPECTED` at most and stop nothing
 ([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)).
-Skip this step when the route names none of them. A signed plane takes the
-[signed route step](#1-the-route-and-the-stop-list) instead.
+A signed plane takes the [signed route step](#1-the-route-and-the-stop-list)
+instead.
 
 ```
 # 2a. Edit route.json: remove every rule naming one of the three, raise the
@@ -121,8 +120,8 @@ others may write without the sticky bit
 Give `--dir` the directory's own path, under a parent the collector's account
 or root owns.
 
-`collect` reads `--listen` as a URL: a socket path holding `#`, `?` or `%` is
-given escaped, as `collect` prints it in `export.endpoint`.
+`collect` reads `--listen` as a URL: escape `#`, `?` or `%` in a socket path,
+as `collect` prints it in `export.endpoint`.
 
 ### 6. Replace signed outputs on Linux or macOS
 
@@ -135,10 +134,10 @@ files on a local file system of Linux or macOS.
 
 ### 7. Send a result hash the plane takes
 
-A plane serving the enforcement API refuses a `complete` whose `resultHash`
-is not `sha256:` and 64 lower-case hex digits, as malformed; send that form
-or none. 0.19's Go and Python clients check it before sending; 0.18's Python
-client did not.
+Send a `complete`'s `resultHash` as `sha256:` and 64 lower-case hex digits, or
+none: a plane serving the enforcement API refuses any other form as malformed.
+0.19's Go and Python clients check it before sending; 0.18's Python client did
+not.
 
 A plane not under `signed` then starts; a signed plane starts after the
 second part.
@@ -216,18 +215,17 @@ Then start the plane.
 
 ## Roll back
 
-Stop the plane and start the 0.18 binaries. 0.18 reads the route 0.19
-signed and the list it carried, unless that list keeps a stop of one of the
-three rules: 0.18 refuses such a line and will not start on that list. In
-that case point `reaction.route` and
-`reaction.stops` back at the files you kept. The route floor holds the new
-route's serial, so make a new one with `policy state init --kind route
---route-id <route_id>` in a new directory and name it in
-`reaction.floor_dir`. Under `signed` the stop list floor holds the carried
-list's serial as well: make a new floor with `stops floor init --tenant <tenant>
+Stop the plane and start the 0.18 binaries. 0.18 reads the route 0.19 signed
+and the list it carried, unless that list keeps a stop of one of the three
+rules: 0.18 refuses such a line and will not start on that list. In that case
+point `reaction.route` and `reaction.stops` back at the files you kept. Make a
+new route floor with `policy state init --kind route --route-id <route_id>` in
+a new directory and name it in `reaction.floor_dir`: the old one holds the new
+route's serial. Under `signed` the stop list floor holds the carried list's
+serial as well: make a new floor with `stops floor init --tenant <tenant>
 --project <project>` in a new directory and name it in
 `reaction.stops_floor_dir`; a floor holding no serial takes the old list. A
-signed carry left that list without its write bits: give them back as its owner
-with `chmod u+w` before 0.18's `react` writes to it.
+signed carry left that list without its write bits: give them back as its
+owner with `chmod u+w` before 0.18's `react` writes to it.
 
 0.18 refuses `project` in a cases document and `notify --env`: remove both.
