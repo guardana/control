@@ -24,7 +24,7 @@ guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --find
     [--view <file> [--view-all]]
     [--roster <file> --root-key <file> --tenant <t> --project <p>]
 guardana-control notify --findings <dir> --state <dir> [--init] [--timeout <duration>]
-    -- <program> [<arg>]...
+    [--env <name>]... -- <program> [<arg>]...
 ```
 
 ## The procedure
@@ -104,8 +104,8 @@ findings kept.
 The step rules rest on something not seen:
 `SUSPECTED` at most, `INDETERMINATE` while a `--source` is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
-Under `0.2` a finding confirms on its run's own events alone; one that
-needs another run's events is `SUSPECTED` at most.
+Under `0.2` a finding confirms on its own run's events; one needing
+another run's is `SUSPECTED` at most.
 
 ## Output and exit status
 
@@ -121,7 +121,7 @@ or `<id> silent` for each `--source` not judged.
 | 1 | otherwise |
 | 2 | nothing printed: an input refused, or a log not opened or written (a cut write no reader takes) |
 
-The log is opened only once every input is accepted. A failure after the write commits exits 2 and keeps it.
+The log opens only after every input is accepted. A failure after the write commits exits 2 and keeps it.
 
 ## The finding record and its log
 
@@ -152,19 +152,18 @@ its default.
 
 ## notify
 
-`notify` hands each `alert` record, in log order, one line on its
-standard input, to the program after `--`, without a shell, and kills its
-process group at the timeout (30 s by default) and again once the program
-exits. A delivery is keyed on the
-finding id and verdict and marked in the state only after the program exits
-0, so a crash delivers that record again: a receiver drops a key it has
-seen. The state is an owner-only directory, locked while in use; `--init`
-starts one and is refused over one. A failed delivery is retried next run;
-only a new state repeats a delivered one. Exit 0 when nothing
-failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark unwritten, a log
-changed); 2, printing nothing, when the state or the log is refused
-before any program ran.
+`notify` hands each `alert` record, in log order, one line on standard
+input, to the program after `--`, without a shell, with only `PATH`,
+`HOME`, `LANG`, `LC_ALL`, `TMPDIR` and `USER` of its environment; name any
+other it needs with `--env`, refused if unset. Its process group is killed
+at the timeout (default 30 s) and on exit. A delivery, keyed by finding id
+and verdict, is marked only once the program took its whole line and exited
+0, so a crash delivers it again; receivers drop seen keys. The owner-only
+state is locked in use; `--init` starts one, refused over one. A failed
+delivery is retried; a new state alone repeats a delivered one. Exit 0 when
+nothing failed; 1 when a delivery failed, on an interrupt, on an unclosed
+write no writer holds, or when the run stopped after a program ran; 2,
+printing nothing, on a state, log or `--env` refused before any program ran.
 
 ## findings export
 

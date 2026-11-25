@@ -145,7 +145,7 @@ no plane reads what they write
     [--view &lt;file&gt; [--view-all]]
     [--roster &lt;file&gt; --root-key &lt;file&gt; --tenant &lt;t&gt; --project &lt;p&gt;]
 guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
-    -- &lt;program&gt; [&lt;arg&gt;]...
+    [--env &lt;name&gt;]... -- &lt;program&gt; [&lt;arg&gt;]...
 </code></pre>
 <h2 id="the-procedure">The procedure</h2>
 <p>A strict JSON document of at most 64 KiB: an unknown or repeated member, a
@@ -297,8 +297,8 @@ findings kept.
 The step rules rest on something not seen:
 <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
-Under <code>0.2</code> a finding confirms on its run's own events alone; one that
-needs another run's events is <code>SUSPECTED</code> at most.</p>
+Under <code>0.2</code> a finding confirms on its own run's events; one needing
+another run's is <code>SUSPECTED</code> at most.</p>
 <h2 id="output-and-exit-status">Output and exit status</h2>
 <p>After the run's line come, under <code>0.2</code>, its children mode and a <code>tree:</code> line
 per run; a line per step, its requests apart from the observations no plane
@@ -329,7 +329,7 @@ or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged.</p>
 </tbody>
 </table>
 </div>
-<p>The log is opened only once every input is accepted. A failure after the write commits exits 2 and keeps it.</p>
+<p>The log opens only after every input is accepted. A failure after the write commits exits 2 and keeps it.</p>
 <h2 id="the-finding-record-and-its-log">The finding record and its log</h2>
 <p><code>guardana.control.finding.v1alpha1</code>, outside the v1 promise. A
 <code>FindingRecord</code> holds the tenant, project, procedure (id, version, digest),
@@ -381,19 +381,18 @@ is never read.</p>
 <p>The reader refuses an unknown schema, a member its schema lacks or one at
 its default.</p>
 <h2 id="notify">notify</h2>
-<p><code>notify</code> hands each <code>alert</code> record, in log order, one line on its
-standard input, to the program after <code>--</code>, without a shell, and kills its
-process group at the timeout (30 s by default) and again once the program
-exits. A delivery is keyed on the
-finding id and verdict and marked in the state only after the program exits
-0, so a crash delivers that record again: a receiver drops a key it has
-seen. The state is an owner-only directory, locked while in use; <code>--init</code>
-starts one and is refused over one. A failed delivery is retried next run;
-only a new state repeats a delivered one. Exit 0 when nothing
-failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark unwritten, a log
-changed); 2, printing nothing, when the state or the log is refused
-before any program ran.</p>
+<p><code>notify</code> hands each <code>alert</code> record, in log order, one line on standard
+input, to the program after <code>--</code>, without a shell, with only <code>PATH</code>,
+<code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code> of its environment; name any
+other it needs with <code>--env</code>, refused if unset. Its process group is killed
+at the timeout (default 30 s) and on exit. A delivery, keyed by finding id
+and verdict, is marked only once the program took its whole line and exited
+0, so a crash delivers it again; receivers drop seen keys. The owner-only
+state is locked in use; <code>--init</code> starts one, refused over one. A failed
+delivery is retried; a new state alone repeats a delivered one. Exit 0 when
+nothing failed; 1 when a delivery failed, on an interrupt, on an unclosed
+write no writer holds, or when the run stopped after a program ran; 2,
+printing nothing, on a state, log or <code>--env</code> refused before any program ran.</p>
 <h2 id="findings-export">findings export</h2>
 <pre><code>guardana-control findings export --findings &lt;dir&gt; [--after &lt;cursor&gt;] [--limit &lt;n&gt;]
     [--max-bytes &lt;n&gt;]
