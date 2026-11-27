@@ -184,7 +184,7 @@ func (refusingWriter) Write([]byte) (int, error) { return 0, errors.New("refused
 // without its box.
 func TestATableBoxThatCannotBeWrittenStops(t *testing.T) {
 	funcs := caught{}
-	extension.NewTableHTMLRenderer().RegisterFuncs(boxedTables{funcs})
+	extension.NewTableHTMLRenderer().RegisterFuncs(newBoxedTables(funcs))
 	table := funcs[east.KindTable]
 	if table == nil || funcs[east.KindTableCell] == nil {
 		t.Fatalf("the table functions were not passed on: %v", funcs)
@@ -263,7 +263,7 @@ func TestThePageCarriesTheHeaderAndTheMenu(t *testing.T) {
 		`<nav class="links" aria-label="Primary"><a href="/#how">How it works</a>`,
 		`<a href="/docs/">Docs</a></nav>`,
 		`<input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme"`,
-		`<a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>`,
+		`<a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>`,
 		`<footer class="ft">`,
 		`<a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a>`,
 		`<link rel="stylesheet" href="/assets/control/v2/tokens.css"/>`,

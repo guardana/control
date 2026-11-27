@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17" aria-current="page">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -128,6 +138,13 @@ the plane in the signed pause file, route, stop list and lifts, so it
 refuses the pause file, the route and the stop list 0.17 signed, each naming
 the command that replaces it, and raises no floor while it does
 (<a href="/docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant">ADR-0082</a>).</p>
+<p>A 0.17 plane need not run 0.18 on its way to 0.19: take these steps with the
+0.19 binaries, leaving <code>DEADLINE_EXCEEDED</code>,
+<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code> out of
+the route step 2 signs, then <a href="/docs/guides/upgrade-a-plane-from-0-18">upgrade a plane from 0.18</a>
+before the plane starts: 0.19 will not start on a route naming those rules or
+a configuration block written twice. A signed plane has then taken its route
+step.</p>
 <h2 id="every-plane">Every plane</h2>
 <p>Under <code>directory</code> and <code>memory</code> the plane reads the files 0.17 wrote: replace
 both binaries and start it. Three things it answers differ.</p>
@@ -203,9 +220,12 @@ guardana-control state backup gateway.yaml /backups/plane-2
 route names its own file and the new list's header names that route, so a
 route moved to the old path is refused. Keep <code>/srv/plane/route.json</code> and
 <code>/srv/plane/stops</code> for a roll back.</p>
-<p>Run <code>react</code> with the 0.18 binary as <code>ops</code>, with <code>--route /srv/plane/route-018.json</code> and <code>--stops /srv/plane/stops-018</code>. A 0.17 <code>react</code>
-left on the old route and directory keeps appending to a list the plane no
-longer reads.</p>
+<p>Run <code>react</code> with the 0.18 binary as <code>ops</code>, with <code>--route /srv/plane/route-018.json</code> and <code>--stops /srv/plane/stops-018</code>. Step 4 takes
+the write bits off the old list once every check passed and before it writes
+the new one, so a 0.17 <code>react</code> left on the old route and directory fails to
+write instead of appending to a list the plane no longer reads. Only the old
+list's owner may take them, so run step 4 as that account: under any other,
+it refuses before it writes anything.</p>
 <p><code>stops init --carry</code> is the one command that reads a <code>reaction-route/v1alpha2</code>
 route and a <code>2.0</code> list. It judges every line through the roster, as a 0.17
 plane did. Only the floor's owner may read a floor, so step 3 copies the
@@ -216,7 +236,10 @@ the floor. The old documents name no plane, so the operator also vouches that
 the list is this plane's. The new <code>3.0</code> header takes the next serial and names
 the old head as <code>previous</code>, which the stop list floor needs to take it. Each
 stop no lift ended is carried with scope <code>run</code> and its run as subject; a
-lifted run's findings are carried as covered.</p>
+lifted run's findings are carried as covered. A stop the new route does not
+grant refuses the carry, naming it; <code>stops lift</code> takes no <code>v1alpha2</code> route,
+so change the route document as the refusal says, sign it again and rerun
+step 4.</p>
 <h3 id="verify">Verify</h3>
 <ul>
 <li><code>stops init</code> says on standard error <code>for plane orders-eu-1</code>, a serial one
@@ -248,6 +271,9 @@ old list below it. Make a new floor with <code>stops floor init</code> in a new
 directory, name it in <code>reaction.stops_floor_dir</code>, and start a new list with
 <code>stops init --key</code>.</li>
 </ul>
+<p>Step 4 left the kept list <code>/srv/plane/stops/stops.jsonl</code> without its write
+bits. Before 0.17's <code>react</code> writes to it, give them back as its owner with
+<code>chmod u+w</code>, or that <code>react</code> fails on every stop.</p>
 <p>Then start 0.17, and run <code>react</code> with the 0.17 binary against the route and
 the new list; it stops again each run that a finding and the route still
 stop.</p>
@@ -261,7 +287,10 @@ stop.</p>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -273,11 +302,13 @@ stop.</p>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17" aria-current="page">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -293,6 +324,7 @@ stop.</p>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -307,11 +339,15 @@ stop.</p>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -346,7 +382,7 @@ stop.</p>
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"errors"
 	"flag"
@@ -83,7 +84,8 @@ func routeSign(keyPath, out, document string, stdout, stderr io.Writer) int {
 		return fail(stderr, routeSignName, fmt.Errorf("document %s: %w", document, err))
 	}
 	out = filepath.Clean(out)
-	if err := checkRouteOut(out); err != nil {
+	judged, err := checkRouteOut(out)
+	if err != nil {
 		return fail(stderr, routeSignName, err)
 	}
 	key, err := policykey.ReadPrivate(keyPath)
@@ -99,7 +101,10 @@ func routeSign(keyPath, out, document string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, routeSignName, err)
 	}
-	if err := ondisk.Replace(filepath.Dir(out), filepath.Base(out), body, routeFileMode); err != nil {
+	beforeOutReplaced(out)
+	ctx, cancel := context.WithTimeout(context.Background(), outLockWait)
+	defer cancel()
+	if err := ondisk.ReplaceJudged(ctx, filepath.Dir(out), filepath.Base(out), body, routeFileMode, judged); err != nil {
 		return fail(stderr, routeSignName, fmt.Errorf("--out %s: %w", out, err))
 	}
 	lines := "route_id: " + oneLine(route.ID()) + "\n" +
@@ -114,15 +119,18 @@ func routeSign(keyPath, out, document string, stdout, stderr io.Writer) int {
 }
 
 // supervisedRules refuses a rule no finding of supervise can stop a run
-// with: a rule id supervise does not have, a rule version that is not that
-// rule's, and a rule outside the table of those that may stop, which every
-// reader of a signed route refuses.
+// with: a rule id supervise does not have, a version of a rule that may no
+// longer stop a run, a rule version that is not that rule's, and a rule
+// outside the table of those that may stop, which every reader of a signed
+// route refuses.
 func supervisedRules(r reaction.Route) error {
 	for i, rule := range r.Rules() {
 		version, known := supervise.RuleVersionOf(rule.RuleID)
 		switch {
 		case !known:
 			return fmt.Errorf("rules[%d]: rule_id %s is no rule supervise has", i, strconv.Quote(rule.RuleID))
+		case reaction.Retired(rule.RuleID, rule.RuleVersion):
+			return fmt.Errorf("rules[%d]: %s rule_version %s: %w", i, rule.RuleID, strconv.Quote(rule.RuleVersion), reaction.ErrRouteRuleStops)
 		case rule.RuleVersion != version:
 			return fmt.Errorf("rules[%d]: rule_version %s is not supervise's %s", i,
 				strconv.Quote(rule.RuleVersion), strconv.Quote(version))
@@ -139,33 +147,33 @@ func supervisedRules(r reaction.Route) error {
 // among what it refuses. The envelope's signature is not checked: this keeps
 // a mistyped path from replacing another file, and whoever may write the path
 // may write any file there.
-func checkRouteOut(out string) error {
+func checkRouteOut(out string) (fs.FileInfo, error) {
 	info, err := os.Lstat(out)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		if err := ondisk.CheckDir(filepath.Dir(out), 0); err != nil {
-			return fmt.Errorf("--out %s: %w", out, err)
+			return nil, fmt.Errorf("--out %s: %w", out, err)
 		}
-		return nil
+		return nil, nil
 	case err != nil:
-		return fmt.Errorf("--out %s: %w", out, err)
+		return nil, fmt.Errorf("--out %s: %w", out, err)
 	}
 	notARoute := fmt.Errorf("--out %s exists and is not a route's envelope, and route sign replaces nothing else", out)
 	if !info.Mode().IsRegular() {
-		return notARoute
+		return nil, notARoute
 	}
-	raw, err := ondisk.ReadRegular(out, reaction.MaxRouteFileBytes, 0)
+	raw, err := ondisk.ReadRegularOf(out, reaction.MaxRouteFileBytes, info)
 	if errors.Is(err, ondisk.ErrTooLarge) {
-		return notARoute
+		return nil, notARoute
 	}
 	if err != nil {
-		return fmt.Errorf("--out %s: %w", out, err)
+		return nil, fmt.Errorf("--out %s: %w", out, err)
 	}
 	if env, err := reaction.ParseRouteFile(raw); err != nil ||
 		(env.PayloadType != reaction.RoutePayloadType && env.PayloadType != reaction.SignedRoutePayloadType) {
-		return notARoute
+		return nil, notARoute
 	}
-	return nil
+	return info, nil
 }
 
 // verifiedRoute reads the signed route at path, which routeFlag named, and

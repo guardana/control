@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -127,126 +137,21 @@ it; the sections say what the trail holds. The <code>chaos_</code> tests
 of <code>cmd/guardana-gateway/</code> run the built binary in <code>ENFORCE</code> against
 listeners, files and a child process that really fail. Nothing here is a
 security boundary (<a href="/docs/status">status</a>).</p>
-<div class="tbl">
-<table>
-<thead>
-<tr>
-<th>Failure</th>
-<th>The call</th>
-<th>Reason code</th>
-<th>The agent gets</th>
-<th>Recovers by itself</th>
-<th>Test</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Collector gone, then back</td>
-<td>runs</td>
-<td>none</td>
-<td>the upstream's answer</td>
-<td>yes</td>
-<td><code>TestACollectorThatIsGoneBlocksNoCallAndGetsEveryRecordBack</code></td>
-</tr>
-<tr>
-<td>Spool full</td>
-<td>blocked before its effect</td>
-<td><code>EVIDENCE_UNAVAILABLE</code></td>
-<td>a tool result with <code>isError: true</code> and the code</td>
-<td>yes, once draining frees room; quarantined records count until <code>spool drain</code> empties it with the plane stopped</td>
-<td><code>TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt</code></td>
-</tr>
-<tr>
-<td>Decision point silent</td>
-<td>blocked</td>
-<td><code>PDP_TIMEOUT</code></td>
-<td><code>isError</code> and the code</td>
-<td>yes, each call asks again</td>
-<td><code>TestAnAskPastTheConfiguredTimeoutIsATimeout</code>, <code>TestEveryEffectClassUnderEveryAnswer</code></td>
-</tr>
-<tr>
-<td>Decision point wrong or gone</td>
-<td>blocked</td>
-<td><code>PDP_ANSWER_REFUSED</code>, <code>PDP_UNAVAILABLE</code></td>
-<td><code>isError</code> and the code</td>
-<td>yes, each call asks again</td>
-<td><code>TestAWrongOrAbsentDecisionPointBlocksOnARunningPlane</code></td>
-</tr>
-<tr>
-<td><code>stdio</code> upstream dies mid-call</td>
-<td>sent once, never retried</td>
-<td>none</td>
-<td>a JSON-RPC error</td>
-<td>no: restart the plane</td>
-<td><code>TestAStdioUpstreamThatDiesMidCallIsNeverASuccess</code></td>
-</tr>
-<tr>
-<td>HTTP upstream drops the connection mid-call</td>
-<td>sent once, never retried</td>
-<td>none</td>
-<td>a JSON-RPC error</td>
-<td>yes, the next call is sent</td>
-<td><code>TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess</code></td>
-</tr>
-<tr>
-<td>Pause file unreadable</td>
-<td>blocked</td>
-<td><code>PAUSE_STATE_UNAVAILABLE</code></td>
-<td><code>isError</code> and the code</td>
-<td>yes, at the first read of a whole file</td>
-<td><code>TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall</code></td>
-</tr>
-<tr>
-<td>Stop list unknown</td>
-<td>blocked</td>
-<td><code>STOP_STATE_UNAVAILABLE</code></td>
-<td><code>isError</code> and the code</td>
-<td>yes, at a whole read extending the accepted list; shrunk or rewritten, no</td>
-<td><code>TestAnUnknownStopStateBlocksEveryCall</code>, <code>TestHealthAnswersTheStopStateAnd503WhenTheListIsRewritten</code></td>
-</tr>
-<tr>
-<td>No freshness statement current</td>
-<td>blocked outside <code>OBSERVE</code>, a read too unless <code>policy.fail_open_read</code> opened it outside <code>LOCKDOWN</code></td>
-<td><code>POLICY_STALE</code></td>
-<td><code>isError</code> and the code</td>
-<td>yes, at the first poll taking a statement bound to the bundle</td>
-<td><code>TestAnUnconfirmedPlaneBlocksMaterialCalls</code>, <code>TestARenewalConfirmsAgain</code></td>
-</tr>
-<tr>
-<td>Bundle file torn, unsigned, older or another id's</td>
-<td>runs on the last good bundle until its statement expires, then blocked</td>
-<td>none, then <code>POLICY_STALE</code></td>
-<td>the upstream's answer, then <code>isError</code> and the code</td>
-<td>yes, once the file holds the served bundle or a newer one with its statement</td>
-<td><code>TestEveryRefusedReplacementMovesNothing</code></td>
-</tr>
-<tr>
-<td>Clock outside 1970 to 9999, or behind the verified time</td>
-<td>blocked outside <code>OBSERVE</code>, a read too, whatever <code>policy.fail_open_read</code> says; in <code>OBSERVE</code> under an opened run</td>
-<td><code>POLICY_STALE</code>; in <code>OBSERVE</code>, <code>EVIDENCE_UNAVAILABLE</code></td>
-<td><code>isError</code> and the code</td>
-<td>yes, once the clock passes the verified time and, after a step back, a newer statement arrives, or a restart follows <code>policy state reset</code>; outside 1970 to 9999, no</td>
-<td><code>TestAClockOutsideTheUsableRangeIsACauseInTheRequest</code>, <code>TestAClockBehindAVerifiedTimeIsACauseInTheRequest</code>, <code>TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead</code>, <code>TestARunUnderObserveBehindTheVerifiedTimeStartsNothing</code></td>
-</tr>
-<tr>
-<td>Floor directory or file missing or unreadable at start</td>
-<td>none: the plane does not start</td>
-<td>none</td>
-<td>no listener</td>
-<td>no: restore it, or make it again with <code>policy state init</code> or <code>reset</code></td>
-<td><code>TestAStartWithNoFloorIsRefused</code>, <code>TestAStartIsRefusedForWhatItCannotRead</code></td>
-</tr>
-<tr>
-<td>Plane killed with calls held</td>
-<td>never runs</td>
-<td><code>APPROVAL_NOT_RESUMED</code>, <code>APPROVAL_REJECTED</code>, <code>APPROVAL_EXPIRED</code> or <code>APPROVAL_STATE_UNKNOWN</code> on the closing record</td>
-<td><code>APPROVAL_PENDING</code>, before the kill</td>
-<td>at the next start, with a hold journal</td>
-<td><code>TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed</code>, <code>TestTheLostHoldCodesTellTheFourAnswersApart</code></td>
-</tr>
-</tbody>
-</table>
-</div>
+<ul class="stack">
+<li><p class="rt">Collector gone, then back</p><dl><dt>The call</dt><dd>runs</dd><dt>Reason code</dt><dd>none</dd><dt>The agent gets</dt><dd>the upstream's answer</dd><dt>Recovers by itself</dt><dd>yes</dd><dt>Test</dt><dd><code>TestACollectorThatIsGoneBlocksNoCallAndGetsEveryRecordBack</code></dd></dl></li>
+<li><p class="rt">Spool full</p><dl><dt>The call</dt><dd>blocked before its effect</dd><dt>Reason code</dt><dd><code>EVIDENCE_UNAVAILABLE</code></dd><dt>The agent gets</dt><dd>a tool result with <code>isError: true</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, once draining frees room; quarantined records count until <code>spool drain</code> empties it with the plane stopped</dd><dt>Test</dt><dd><code>TestAFullSpoolBlocksCallsUntilTheCollectorDrainsIt</code></dd></dl></li>
+<li><p class="rt">Decision point silent</p><dl><dt>The call</dt><dd>blocked</dd><dt>Reason code</dt><dd><code>PDP_TIMEOUT</code></dd><dt>The agent gets</dt><dd><code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, each call asks again</dd><dt>Test</dt><dd><code>TestAnAskPastTheConfiguredTimeoutIsATimeout</code>, <code>TestEveryEffectClassUnderEveryAnswer</code></dd></dl></li>
+<li><p class="rt">Decision point wrong or gone</p><dl><dt>The call</dt><dd>blocked</dd><dt>Reason code</dt><dd><code>PDP_ANSWER_REFUSED</code>, <code>PDP_UNAVAILABLE</code></dd><dt>The agent gets</dt><dd><code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, each call asks again</dd><dt>Test</dt><dd><code>TestAWrongOrAbsentDecisionPointBlocksOnARunningPlane</code></dd></dl></li>
+<li><p class="rt"><code>stdio</code> upstream dies mid-call</p><dl><dt>The call</dt><dd>sent once, never retried</dd><dt>Reason code</dt><dd>none</dd><dt>The agent gets</dt><dd>a JSON-RPC error</dd><dt>Recovers by itself</dt><dd>no: restart the plane</dd><dt>Test</dt><dd><code>TestAStdioUpstreamThatDiesMidCallIsNeverASuccess</code></dd></dl></li>
+<li><p class="rt">HTTP upstream drops the connection mid-call</p><dl><dt>The call</dt><dd>sent once, never retried</dd><dt>Reason code</dt><dd>none</dd><dt>The agent gets</dt><dd>a JSON-RPC error</dd><dt>Recovers by itself</dt><dd>yes, the next call is sent</dd><dt>Test</dt><dd><code>TestAnHTTPUpstreamThatDropsTheCallIsNeverASuccess</code></dd></dl></li>
+<li><p class="rt">Pause file unreadable</p><dl><dt>The call</dt><dd>blocked</dd><dt>Reason code</dt><dd><code>PAUSE_STATE_UNAVAILABLE</code></dd><dt>The agent gets</dt><dd><code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, at the first read of a whole file</dd><dt>Test</dt><dd><code>TestAPauseFileSpoiledWhileThePlaneRunsBlocksEveryCall</code></dd></dl></li>
+<li><p class="rt">Stop list unknown</p><dl><dt>The call</dt><dd>blocked</dd><dt>Reason code</dt><dd><code>STOP_STATE_UNAVAILABLE</code></dd><dt>The agent gets</dt><dd><code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, at a whole read extending the accepted list; shrunk or rewritten, no</dd><dt>Test</dt><dd><code>TestAnUnknownStopStateBlocksEveryCall</code>, <code>TestHealthAnswersTheStopStateAnd503WhenTheListIsRewritten</code></dd></dl></li>
+<li><p class="rt">No freshness statement current</p><dl><dt>The call</dt><dd>blocked outside <code>OBSERVE</code>, a read too unless <code>policy.fail_open_read</code> opened it outside <code>LOCKDOWN</code></dd><dt>Reason code</dt><dd><code>POLICY_STALE</code></dd><dt>The agent gets</dt><dd><code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, at the first poll taking a statement bound to the bundle</dd><dt>Test</dt><dd><code>TestAnUnconfirmedPlaneBlocksMaterialCalls</code>, <code>TestARenewalConfirmsAgain</code></dd></dl></li>
+<li><p class="rt">Bundle file torn, unsigned, older or another id's</p><dl><dt>The call</dt><dd>runs on the last good bundle until its statement expires, then blocked</dd><dt>Reason code</dt><dd>none, then <code>POLICY_STALE</code></dd><dt>The agent gets</dt><dd>the upstream's answer, then <code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, once the file holds the served bundle or a newer one with its statement</dd><dt>Test</dt><dd><code>TestEveryRefusedReplacementMovesNothing</code></dd></dl></li>
+<li><p class="rt">Clock outside 1970 to 9999, or behind the verified time</p><dl><dt>The call</dt><dd>blocked outside <code>OBSERVE</code>, a read too, whatever <code>policy.fail_open_read</code> says; in <code>OBSERVE</code> under an opened run</dd><dt>Reason code</dt><dd><code>POLICY_STALE</code>; in <code>OBSERVE</code>, <code>EVIDENCE_UNAVAILABLE</code></dd><dt>The agent gets</dt><dd><code>isError</code> and the code</dd><dt>Recovers by itself</dt><dd>yes, once the clock passes the verified time and, after a step back, a newer statement arrives, or a restart follows <code>policy state reset</code>; outside 1970 to 9999, no</dd><dt>Test</dt><dd><code>TestAClockOutsideTheUsableRangeIsACauseInTheRequest</code>, <code>TestAClockBehindAVerifiedTimeIsACauseInTheRequest</code>, <code>TestAClockBehindTheFloorStopsAnUnconfirmedSnapshotsRead</code>, <code>TestARunUnderObserveBehindTheVerifiedTimeStartsNothing</code></dd></dl></li>
+<li><p class="rt">Floor directory or file missing or unreadable at start</p><dl><dt>The call</dt><dd>none: the plane does not start</dd><dt>Reason code</dt><dd>none</dd><dt>The agent gets</dt><dd>no listener</dd><dt>Recovers by itself</dt><dd>no: restore it, or make it again with <code>policy state init</code> or <code>reset</code></dd><dt>Test</dt><dd><code>TestAStartWithNoFloorIsRefused</code>, <code>TestAStartIsRefusedForWhatItCannotRead</code></dd></dl></li>
+<li><p class="rt">Plane killed with calls held</p><dl><dt>The call</dt><dd>never runs</dd><dt>Reason code</dt><dd><code>APPROVAL_NOT_RESUMED</code>, <code>APPROVAL_REJECTED</code>, <code>APPROVAL_EXPIRED</code> or <code>APPROVAL_STATE_UNKNOWN</code> on the closing record</dd><dt>The agent gets</dt><dd><code>APPROVAL_PENDING</code>, before the kill</dd><dt>Recovers by itself</dt><dd>at the next start, with a hold journal</dd><dt>Test</dt><dd><code>TestAnApproverOutsideThePlaneAnswersAndALostHoldIsClosed</code>, <code>TestTheLostHoldCodesTellTheFourAnswersApart</code></dd></dl></li>
+</ul>
 <p><code>APPROVAL_NOT_RESUMED</code>, <code>APPROVAL_REJECTED</code> and <code>APPROVAL_EXPIRED</code> are
 <code>DENY</code>; every other code in the table, <code>APPROVAL_STATE_UNKNOWN</code> included, is
 <code>INDETERMINATE</code> (<a href="/docs/reference/reason-codes">reason codes</a>). A blocked <code>tools/call</code> is
@@ -366,7 +271,10 @@ Without a hold journal the trail is never closed, as <code>/healthz</code> says 
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -378,11 +286,13 @@ Without a hold journal the trail is never closed, as <code>/healthz</code> says 
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -398,6 +308,7 @@ Without a hold journal the trail is never closed, as <code>/healthz</code> says 
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -412,11 +323,15 @@ Without a hold journal the trail is never closed, as <code>/healthz</code> says 
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -451,7 +366,7 @@ Without a hold journal the trail is never closed, as <code>/healthz</code> says 
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

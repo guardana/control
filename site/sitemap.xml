@@ -88,8 +88,12 @@
   <url><loc>https://control.guardana.dev/docs/adr/0083-a-finding-may-stop-an-agent-or-a-principal</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0084-the-site-is-redrawn-in-one-system</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0086-controlled-attempts-are-counted-at-the-victim</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
+  <url><loc>https://control.guardana.dev/docs/concepts/agent-tool-call-controls</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/approvals-and-the-held-call</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/architecture</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/control-and-supervision</loc></url>
@@ -110,7 +114,10 @@
   <url><loc>https://control.guardana.dev/docs/get-started/try-the-demo</loc></url>
   <url><loc>https://control.guardana.dev/docs/get-started/try-the-rest-of-the-demo</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/back-up-and-restore-a-plane</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/check-a-security-testing-agent</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/compare-a-candidate-policy</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/connect-an-existing-mcp-setup</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/count-controlled-attempts</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/decide-a-tool-of-your-own</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/keep-two-tasks-apart</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/let-a-decision-point-veto</loc></url>
@@ -122,9 +129,11 @@
   <url><loc>https://control.guardana.dev/docs/guides/test-a-procedure</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/troubleshoot-a-plane</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/upgrade-a-plane-from-0-17</loc></url>
+  <url><loc>https://control.guardana.dev/docs/guides/upgrade-a-plane-from-0-18</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/watch-a-plane-without-a-collector</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/watch-an-egress-proxy</loc></url>
   <url><loc>https://control.guardana.dev/docs/guides/write-and-test-a-policy</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/attempt-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/benchmarks</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/channels</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/claude-code-hooks</loc></url>
@@ -139,11 +148,15 @@
   <url><loc>https://control.guardana.dev/docs/reference/metrics</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/obligations</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/observations</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/policy-compare</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/policy-explain</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/policy-format</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reaction</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reaction-signed</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/reason-codes</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/risks/advisories</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/risks/owasp-agentic-top-10</loc></url>
+  <url><loc>https://control.guardana.dev/docs/reference/risks/owasp-llm-top-10</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/run-view</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/runs</loc></url>
   <url><loc>https://control.guardana.dev/docs/reference/scenario-format</loc></url>

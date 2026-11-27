@@ -40,13 +40,13 @@ digest: 3bdccd18fb0503f6168a59a8bae712b9b37be7e4435f796b111be409f7d59dd6
 children: inherit
 rule: REPEATED_DENIAL version 2, may stop
 rule: STEP_OUTSIDE_PROCEDURE version 1, may stop
-rule: DEADLINE_EXCEEDED version 1, may stop
+rule: DEADLINE_EXCEEDED version 2, never stops
 rule: REQUIRED_STEP_SKIPPED version 1, never stops
 rule: STEP_OUT_OF_ORDER version 2, never stops
 rule: CONTINUED_AFTER_FAILURE version 2, never stops
 rule: RESOURCE_OUTSIDE_RUN version 1, may stop
-rule: DENIED_ACTION_RETRIED_ARGUMENTS version 1, may stop
-rule: DENIED_ACTION_RETRIED_RESOURCE version 1, may stop
+rule: DENIED_ACTION_RETRIED_ARGUMENTS version 2, never stops
+rule: DENIED_ACTION_RETRIED_RESOURCE version 2, never stops
 rule: DENIED_ACTION_RETRIED_AROUND version 1, never stops
 rule: EXCEPTION_TAKEN version 1, never stops
 ```
@@ -75,7 +75,7 @@ are read from the document's own directory.
   "cases": [
     {
       "name": "a resource outside the run",
-      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "parent": "", "closed": true},
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "t1", "project": "orders", "parent": "", "closed": true},
       "tree": [],
       "evidence": [{"whole": true, "events": [ ... ]}],
       "expect": {
@@ -94,16 +94,23 @@ Every member is required except `sources` and `sources_not_read`, and a member
 the format does not have is refused:
 
 - `run` is the supervised run as its record would say: its id, tenant,
-  parent (empty for a root) and whether it is closed. Rules that rest on what
-  was not seen are checked only on a closed run.
-- `tree` lists the other runs of its tree, each after its parent, for a `0.2`
-  procedure, only its children under `separate`; `[]` is the run alone.
+  project, parent (empty for a root) and whether it is closed. Rules that
+  rest on what was not seen are checked only on a closed run. Its sources
+  are taken to be of the run's project, and an event of the run naming
+  another project fails the case as `refused:`, as `supervise` refuses it.
+- `tree` lists the other runs of its tree in the same form, each after its
+  parent, for a `0.2` procedure, only its children under `separate`; `[]` is
+  the run alone. A run of another tenant or project fails the case the same
+  way.
 - `evidence` holds exports, each either `{"path": "<export file>"}`, a file
   the gateway's trail export wrote, or `{"whole": <bool>, "events": [...]}`
-  with the events as that export writes them.
+  with the events as that export writes them; an event whose
+  `schemaVersion` is of another major, or not `MAJOR.MINOR`, is refused as
+  the export reader refuses it.
 - `sources`, if given, are sources of an agent runtime's spans: `source_id`,
   `heartbeat_seconds`, `last_heard` (left out for a source never heard) and
-  `observations`. `sources_not_read` names sources given and not found.
+  `observations`, each read as a source that reports every call. `sources_not_read`
+  names sources given and not found.
 - Every time comes from the events and the sources, written in UTC with `Z`.
 
 `expect` states the state of every rule the report lists (`CHECKED`,
@@ -120,7 +127,7 @@ reason, so a source that went unheard fails a case that does not list it.
 $ go run ./cmd/guardana-control procedure test testdata/procedure/cases-0.2.json
 ok   a waiver taken: EXCEPTION_TAKEN CONFIRMED
 ok   a resource outside the run: RESOURCE_OUTSIDE_RUN CONFIRMED
-ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS CONFIRMED
+ok   a denied refund retried with other arguments: DENIED_ACTION_RETRIED_ARGUMENTS SUSPECTED
 procedure refund version 2: 3 cases, 3 passed, 0 failed
 ```
 
@@ -137,10 +144,11 @@ FAIL a resource outside the run: finding RESOURCE_OUTSIDE_RUN SUSPECTED run-aaaa
 
 ## Verify
 
-`procedure test` exits 0 when every case passed and 1 when any failed. A
-cases document it cannot read, a version other than `0.1`, a procedure the
-reader refuses, an export it cannot read, no case, or two cases of one name
-exit 2 with one line on stderr and nothing run.
+`procedure test` exits 0 when every case passed and 1 when any failed, or
+when it cannot write its report. A cases document it cannot read, a version
+other than `0.1`, a procedure the reader refuses, an export or an inline
+event it cannot read, no case, or two cases of one name exit 2 with one line
+on stderr and nothing run.
 
 ## Roll back
 

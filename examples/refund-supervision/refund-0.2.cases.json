@@ -4,7 +4,7 @@
   "cases": [
     {
       "name": "the refund retried as an update",
-      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "acme", "parent": "", "closed": false},
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "acme", "project": "refunds", "parent": "", "closed": false},
       "tree": [],
       "evidence": [
         {"whole": true, "events": [
@@ -25,13 +25,13 @@
         "rules": {"REPEATED_DENIAL": "CHECKED", "STEP_OUTSIDE_PROCEDURE": "CHECKED", "DEADLINE_EXCEEDED": "CHECKED", "REQUIRED_STEP_SKIPPED": "NOT_CHECKED", "STEP_OUT_OF_ORDER": "NOT_CHECKED", "CONTINUED_AFTER_FAILURE": "NOT_CHECKED", "RESOURCE_OUTSIDE_RUN": "CHECKED", "DENIED_ACTION_RETRIED_ARGUMENTS": "CHECKED", "DENIED_ACTION_RETRIED_RESOURCE": "CHECKED", "DENIED_ACTION_RETRIED_AROUND": "NOT_CHECKED", "EXCEPTION_TAKEN": "CHECKED"},
         "findings": [
           {"rule": "RESOURCE_OUTSIDE_RUN", "verdict": "CONFIRMED", "run": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "requests": ["r1", "r2", "r3"]},
-          {"rule": "DENIED_ACTION_RETRIED_RESOURCE", "verdict": "CONFIRMED", "run": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "requests": ["r2", "r3"]}
+          {"rule": "DENIED_ACTION_RETRIED_RESOURCE", "verdict": "SUSPECTED", "run": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "requests": ["r2", "r3"]}
         ]
       }
     },
     {
       "name": "the export approved",
-      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "acme", "parent": "", "closed": false},
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "acme", "project": "refunds", "parent": "", "closed": false},
       "tree": [],
       "evidence": [
         {"whole": true, "events": [
@@ -56,7 +56,7 @@
     },
     {
       "name": "the export without an approval",
-      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "acme", "parent": "", "closed": false},
+      "run": {"id": "run-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tenant": "acme", "project": "refunds", "parent": "", "closed": false},
       "tree": [],
       "evidence": [
         {"whole": true, "events": [

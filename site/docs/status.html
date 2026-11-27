@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -145,7 +155,10 @@ can import runtime traces and an egress proxy's access log as observations,
 inspect coverage, and check one
 opened run against its procedure, draw it as a page, hand its findings to a
 program, and stop that run, or under <code>signed</code> its agent or principal, where
-a signed route allows it.</li>
+a signed route allows it. You can compare a candidate policy with the
+current one over test cases and a plane's recorded requests, every result
+simulated, and run scripted attempts against the demo's victims, counted
+at the victims.</li>
 <li>The limits: the gateway sees only the calls routed through it, the caller's
 identity comes from its configuration rather than a login, and the evidence
 trail is not tamper-evident. It is not a security boundary.</li>
@@ -270,8 +283,8 @@ already holds a package doc and a test holds nothing that decides.</li>
 <tr>
 <td>candidate-policy</td>
 <td>Candidate-policy comparison and simulation</td>
-<td><code>planned</code></td>
-<td>Comparing a candidate policy with the current one and simulating it; no diff or simulation command is built. <a href="#candidate-policy">details</a></td>
+<td><code>experimental</code></td>
+<td><code>policy compare</code> decides cases and a plane's evidence under the current and a candidate policy through the kernel, and reports each change, simulated, with unknowns counted. <a href="#candidate-policy">details</a></td>
 </tr>
 </tbody>
 </table>
@@ -514,6 +527,12 @@ already holds a package doc and a test holds nothing that decides.</li>
 <td>Two vulnerable MCP servers, their plane and seven scenarios, shipped in an archive per platform that runs without Go or a checkout. <a href="#demo-servers">details</a></td>
 </tr>
 <tr>
+<td>controlled-attempts</td>
+<td>Controlled attempts counted at the victim</td>
+<td><code>experimental</code></td>
+<td>Runs scripted attempts against the demo's victims, each on a fresh dev plane, and counts effects and legitimate steps at the victims' journals, with both controls. <a href="#controlled-attempts">details</a></td>
+</tr>
+<tr>
 <td>backup-restore</td>
 <td>Backup and restore of authority state</td>
 <td><code>experimental</code></td>
@@ -655,7 +674,8 @@ the rules that matched and the inputs a rule lacked
 <a href="#policy-floor">rows below</a>).</p>
 <p>The same binary holds the <code>approvals</code> commands and the <code>console</code> page in the
 <a href="#approval-authority">approval authority row</a> below, and the page's loopback
-listener is its one server; <code>policy diff</code> is <code>planned</code>.</p>
+listener is its one server; <code>policy compare</code> is in the
+<a href="#candidate-policy">candidate-policy row</a>, <code>experimental</code>.</p>
 <h3 id="starter-packs">starter-packs</h3>
 <p><code>examples/starter-packs/</code>,
 <a href="/docs/reference/starter-packs">reference/starter-packs.md</a>. Each is a document and
@@ -671,7 +691,13 @@ key), <a href="/docs/adr/0018-keys-and-bundles-on-disk">ADR-0018</a>. <code>poli
 <code>policy sign</code> write them and the gateway parses <code>policy.public_key</code> through the
 same package.</p>
 <p>Unix-like systems only; the approvals store, the hold journal and the spool
-carry their own file code.</p>
+carry their own file code. <code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>, <code>policy renew</code>, <code>supervise --view</code> and the signed pause writers replace
+an existing output only while it is the file they judged (inode, type, mode,
+size and times), under a lock of that file, by exchanging two names in one
+step (<code>internal/files/judged.go</code>); outside Linux and macOS, or on a file system
+that cannot exchange, they refuse to replace it. The lock binds this
+program's writers alone, and any account that can read the file can hold it
+until the write gives up.</p>
 <h3 id="policy-matcher">policy-matcher</h3>
 <p><code>internal/policy/rules/</code> parses <code>agent-policy/v1alpha1</code> strictly,
 <code>internal/policy/bundle/</code> signs and verifies bundle bytes (Ed25519 over the DSSE
@@ -694,7 +720,9 @@ operator's, and the gateway binary holds neither
 commands use it (<code>policy renew</code>, <code>policy state init</code> and <code>reset</code>), and so does
 every plane, through <code>policy.state_dir</code>. A floor protects only while its
 directory outlives the plane, and an account that can write the directory can
-lower it.</p>
+lower it. <code>Init</code> leaves a new floor directory <code>0700</code> under any umask that
+keeps the owner's read bit, and under one that takes it fails and leaves
+none.</p>
 <h3 id="policy-refresh">policy-refresh</h3>
 <p><code>internal/policywatch/</code>, wired by <code>cmd/guardana-gateway/planepolicy.go</code>,
 <a href="/docs/adr/0038-a-signed-freshness-statement-and-a-serial-floor">ADR-0038</a>. At
@@ -770,7 +798,8 @@ answered, and no file there reads as spent or given up. Under <code>directory</c
 <code>authn:</code> prefix is refused when it is written and when it is read
 (<a href="/docs/adr/0066-each-decision-about-authority-is-a-port">ADR-0066</a>); under
 <code>signed</code> an answer counts only signed by a roster operator granted the call's
-tenant and project, and the console, which holds no operator key, shows a signed
+tenant and project, from an inbox the plane's own account owns, refused
+otherwise at start and at every read, and the console, which holds no operator key, shows a signed
 hold and the command that signs it and answers nothing, and writes no pause
 under <code>signed</code> or into a signed pause file; a <code>dev</code> plane runs <code>signed</code> with an
 operator key in its own state directory, so its own account approves and pauses;
@@ -782,10 +811,27 @@ closed and its chain forks, though nothing runs twice: restore is B14's,
 thing between it and another local account or a web page, and it cannot tell
 whether a plane reads its pause file; signed webhook callbacks are <code>planned</code>.</p>
 <h3 id="candidate-policy">candidate-policy</h3>
-<p><a href="/docs/backlog">backlog B27</a>,
-<a href="/docs/adoption-and-incident-workflows#b27-compare-and-simulate-a-candidate-policy">adoption requirements</a>;
-<code>policy explain</code> and <code>policy test</code> exist, but no diff or simulation command is
-built.</p>
+<p><code>internal/policycompare/</code>, <code>cmd/guardana-control/policy_compare*.go</code>, the
+corpus in <code>testdata/policy/compare/</code>,
+<a href="/docs/reference/policy-compare">reference/policy-compare.md</a>,
+<a href="/docs/guides/compare-a-candidate-policy">guides/compare-a-candidate-policy.md</a>,
+<a href="/docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation">ADR-0087</a>.
+<code>policy compare</code> signs both documents in memory, decides each case twice
+through <code>Kernel.Explain</code> and writes a <code>policy-comparison/v1alpha1</code> report,
+once, to a name that did not exist; it sends no call, consumes no approval and
+activates no policy. A case file must be written against the current document.
+An evidence request is decided with arguments <code>{}</code>, no flow and no decision
+point answer, so a rule reading flow or that answer leaves it unknown, and so
+does a decision on another policy or not recorded fresh, of another major, or
+a current side that disagrees with the recorded decision. A request a gap cut
+is unknown, and one that looks whole may have lost later events, which the
+report's scope says. Any case is unknown when no rule ran on a side, the kernel
+denied it on its own for a refused delegation or two tenants, or a side's
+policy is stale at its time. Limits: every result is simulated,
+never a call that ran; labels count by label and change, and a labeller's
+independence from the author is declared, never verified; the plane's own
+staleness budget, <code>fail_open_read</code> and applicable obligations are not in the
+evidence; shadow evaluation of live traffic and rollout are not built.</p>
 <h3 id="mcp-gateway">mcp-gateway</h3>
 <ul>
 <li><code>internal/gateway/</code> (the protocol-neutral pipeline: <code>Admit</code>, <code>Close</code>, <code>Abort</code>,
@@ -876,7 +922,10 @@ listed), <code>doctor</code> (the values too short to scan),
 <a href="/docs/adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld">ADR-0042</a>,
 <a href="/docs/reference/mcp-coverage">reference/mcp-coverage.md</a>. Catches an echo, not an
 upstream that sets out to leak; an endpoint's path and a command's arguments are
-not scanned, and no setting exempts a value that appears in normal answers.</p>
+not scanned, and no setting exempts a value that appears in normal answers.
+A tool name, prompt name or resource URI that quotes such a credential is
+recorded as <code>withheld:sha256:</code> and its digest; the upstream still receives
+it.</p>
 <h3 id="enforce-client">enforce-client</h3>
 <p><code>internal/enforceclient/</code> (a Go client of <code>admit</code>, <code>complete</code> and <code>abort</code> over a
 Unix socket, and <code>Admit</code>, <code>Complete</code> and <code>Abort</code>, which hold every client rule,
@@ -917,7 +966,8 @@ never from what the client says about the call; single-use 128-bit handles
 that expire and are abandoned by a sweep; a bound on the executions one run
 holds open; a rewrite that moves the decided resource, and in every mode a
 call whose envelope the contract refuses for anything but an unnamed tool,
-aborted and answered <code>BLOCK</code>)</li>
+aborted and answered <code>BLOCK</code>; a <code>complete</code> whose <code>resultHash</code> is not
+<code>sha256:</code> and 64 lower-case hex digits, refused as malformed)</li>
 <li><code>internal/adapterkit/</code> and <code>internal/classify/</code> (shared with <code>adapters/mcp/</code>)</li>
 <li><code>testdata/enforce/receiver/</code> (the receiver cases, each with a negative
 control)</li>
@@ -1038,7 +1088,10 @@ file or every segment back with each trail's chain checked;
 <p>A trail is at least once, its check proves each chain's shape, not its
 integrity, and the token goes only to a socket peer of <code>export.collector_uid</code>,
 or over <code>https</code> to whoever holds a certificate the system trusts for the
-collector's name.</p>
+collector's name. <code>collect</code> and <code>prune</code> refuse a trail directory that is a
+link or whose parent another account than theirs or root may replace a name
+in, and <code>collect</code> answers a repeat of records it holds only once it has read
+each one's line back.</p>
 <h3 id="evidence-export">evidence-export</h3>
 <p><code>internal/trailfile/</code> (<code>Export</code>), <code>internal/lineexport/</code> (the cursor and the
 read side a JSON Lines export shares), <code>guardana-gateway trail export</code>,
@@ -1149,7 +1202,9 @@ carried
 (<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>);
 a token acts as its run until it expires or is closed; a run closed after its
 call passed the listener still runs that call; <code>dev</code> and scenarios serve local
-runs only.</p>
+runs only. A signed plane refuses to start, and <code>doctor</code> fails, while
+<code>records/</code> holds more than the 65,536 records a start reads to carry their
+closes, until <code>runs prune</code> archives the expired trees.</p>
 <h3 id="run-supervision">run-supervision</h3>
 <ul>
 <li><code>internal/supervise/</code> (a guarded tree: procedure schemas <code>0.1</code> and <code>0.2</code>, the
@@ -1172,16 +1227,22 @@ and <code>procedure test</code> in <code>cmd/guardana-control/</code></li>
 <li><a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a></li>
 <li><a href="/docs/adr/0048-one-run-drawn-as-a-page-and-findings-exported-with-a-cursor">ADR-0048</a></li>
 <li><a href="/docs/adr/0058-a-copy-an-import-never-read-is-doubt-for-the-runs-it-claimed">ADR-0058</a></li>
+<li><a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a></li>
 </ul>
 <p>It reads exports and logs when an operator runs it; nothing in a plane reads a
 finding, and <code>react</code> turns a confirmed one into a stop of the run it names, a
 root or a child (<a href="#run-stop">row below</a>). A finding resting on what a runtime
-reported is suspected at most; a skipped step is never confirmed; the report
-names each source not read, never heard or silent.</p>
+reported is suspected at most, and so is a deadline or a retry, which compares
+two events' times no event ties to one plane
+(<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>); a skipped step is never confirmed; the report
+names each source not read, never heard or silent. <code>notify</code> gives its program
+only <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code>, <code>USER</code> and each variable
+<code>--env</code> names.</p>
 <h3 id="run-stop">run-stop</h3>
 <ul>
-<li><code>internal/reaction/</code> (the route, the six rules a route may name and the
-three of them that may stop an agent or a principal, the stop list's grammar
+<li><code>internal/reaction/</code> (the route, the three rules a route may name and the
+one of them that may stop an agent or a principal, the rule versions only a
+carried list's stops still name, the stop list's grammar
 and judge, the snapshot a plane decides under and its matcher of a run, an
 agent and a principal)</li>
 <li><code>internal/reaction/stoplist/</code> (the reader a plane polls)</li>
@@ -1210,10 +1271,16 @@ start a new list across a restart, except under <code>signed</code>, where the s
 directory and the route are refused when that account may write them and every
 list chains to the floor and extends the part of it the plane accepted, a floor
 that account can still lower, after which a list the stop writers cut back is
-taken; <code>react</code>'s own lines are signed by no operator, and the checks read mode
-bits, not darwin access control lists.</p>
+taken; <code>react</code>'s own lines are signed by no operator, and the list reader
+reads mode bits, not access control lists, though a signed start also refuses
+an access control list on Linux and macOS. A signed carry takes the write bits
+off the list it carried from before it writes the new one, and <code>react</code> and
+<code>stops lift</code> refuse a list its owner may not write; <code>react</code> under a signed
+route reads only a signed runs directory. A carried stop of a rule no route
+may name any more stands only within what the new route grants
+(<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>).</p>
 <p>Under <code>signed</code> a route may stop the agent or principal of the finding's run
-instead, for <code>REPEATED_DENIAL</code> and the two retry rules and for the rule's
+instead, for <code>REPEATED_DENIAL</code> alone and for the rule's
 lifetime; matched against the listener's configured identity, such a stop
 refuses every call of the plane <code>AGENT_OR_PRINCIPAL_STOPPED</code>, runless calls and
 later runs included, and only a lift of that agent or principal ends it. No
@@ -1251,8 +1318,10 @@ and <code>doctor</code> and <code>health.socket</code> report <code>trust</code>
 without the id; the plane refuses to start
 when its account may write the roster file, so that account cannot put an older
 roster in place; it still raises the roster's floor, so it can withhold a newer
-roster within the held one's lifetime; a <code>read</code> grant parses and grants nothing
-yet, which <code>doctor</code> says;
+roster within the held one's lifetime; <code>doctor</code> refuses, as a serving plane
+does, a roster at the floor's serial with another digest and one naming a
+pinned key, such as the policy key, as an operator; a <code>read</code> grant parses and
+grants nothing yet, which <code>doctor</code> says;
 <a href="/docs/contracts#signed-files-and-their-project-checks">contracts.md</a> lists each
 signed file a plane takes with its project check.</p>
 <h3 id="scenario-runs">scenario-runs</h3>
@@ -1295,6 +1364,27 @@ published.</p>
 <p>Its test builds the binaries, runs each scenario on its own plane through <code>dev</code>,
 reads what each server received, and fails one mutant of each scenario on the
 member it changed.</p>
+<h3 id="controlled-attempts">controlled-attempts</h3>
+<p><code>internal/attempts/</code> reads <code>attempt-manifest/v1alpha1</code> strictly, judges each
+victim's journal and counts; <code>guardana-gateway attempts run</code>
+(<code>cmd/guardana-gateway/attempts*.go</code>) runs every attempt of a manifest on a
+fresh dev plane per repetition and plane configuration, one at a time, sends
+every call step whatever earlier answers were, and writes an
+<code>attempt-report/v1alpha1</code> line by line;
+<a href="/docs/reference/attempt-format">reference/attempt-format.md</a>,
+<a href="/docs/guides/count-controlled-attempts">guides/count-controlled-attempts.md</a>,
+<a href="/docs/adr/0086-controlled-attempts-are-counted-at-the-victim">ADR-0086</a>.
+<code>examples/vulnerable-mcp-agent/attempts/manifest.json</code> labels the demo's
+seven scenarios and runs them on ENFORCE, measured, and OBSERVE, the positive
+control, three times.</p>
+<p>Its limits: the attempts are scripted and no model drives them; every plane
+has dev's wiring (keys made in the process, the bundle signed at start, the
+collector in the process, approvals, trust, operators and runs owned by dev,
+no run tokens, no taint across runs); pause and stops have no positive
+control, and no broken copy of the plane's code is run; only the demo's
+victims keep a journal, so an effect elsewhere cannot be counted; numbers in
+a condition compare as written. A plane starts for every attempt-run, so the
+demo's manifest at one repetition starts fourteen.</p>
 <h3 id="backup-restore">backup-restore</h3>
 <p><code>internal/recovery/</code>, <code>state backup</code> and <code>state restore</code> in
 <code>cmd/guardana-control/</code>,
@@ -1327,7 +1417,13 @@ the backup; under <code>signed</code> both commands refuse a key the environment
 outside <code>api/gen/</code> and a skipped test <code>scripts/expected-skips.txt</code> does not name
 (<a href="/docs/adr/0063-a-skipped-test-fails-the-gate-unless-the-repository-expects-it">ADR-0063</a>),
 and it reads what the test binary prints, so a test that prints its own pass and
-exits 0 hides the tests after it, which only review catches), <code>scripts/</code>,
+exits 0 hides the tests after it, which only review catches; before it, both
+targets refuse a module whose <code>./...</code> leaves out a package holding Go files, as
+a <code>go.mod</code> <code>ignore</code> directive can, or one the module's code imports, as one
+under <code>testdata</code> or <code>_</code> is, and a module that builds code from a vendor
+directory or a local <code>replace</code> outside the repository's modules; a package only
+a test, a <code>//go:build ignore</code> program or another platform's file imports is not
+covered), <code>scripts/</code>,
 <code>internal/docscheck/</code>, <code>internal/core/layering_test.go</code>. The dependency rule is
 an allowlist over six trees, all examined, and every package of this module they
 reach is held to the same refusals by name; no non-test file under <code>adapters/</code>
@@ -1349,7 +1445,8 @@ names the pages a change makes suspect.</p>
 <p><code>docs/adr/</code>.</p>
 <h3 id="continuous-integration">continuous-integration</h3>
 <p><code>.github/workflows/</code>: <code>ci.yml</code> runs <code>make quality</code> on Linux for every push to
-<code>main</code> and every pull request, its quality job also checking every action pin
+<code>main</code> and every pull request, naming the <code>Makefile</code>, which refuses a
+<code>GNUmakefile</code> or <code>makefile</code> beside it, its quality job also checking every action pin
 against the commit its version tag names in that action's repository
 (<code>scripts/pin-actions.sh --check</code>, failing when GitHub cannot answer),
 <code>make check-mcp-client</code> beside it
@@ -1386,11 +1483,16 @@ without a stored key, and a build provenance attestation for every archive, all
 verified by the workflow before it publishes.</p>
 <p>Every binary of every archive and the image's binary for each platform are
 scanned with <code>govulncheck</code> in binary mode before anything is attested; a finding
-stops the release (<code>scripts/scan-binaries.sh</code>). The release job refuses a commit
-that is not main's head, that lacks a successful CI and Security push run on
-main, or that main's newest CodeQL analysis is not of, and refuses while main
-has an open CodeQL alert of severity high or critical
-(<code>scripts/check-gate-runs.sh</code>).</p>
+stops the release (<code>scripts/scan-binaries.sh</code>), and so does an archive without
+the binary of a command under <code>cmd/</code> where goreleaser puts it. The release job
+refuses a commit that is not main's head, that lacks a successful CI and
+Security push run on main, or that main's newest CodeQL analysis is not of, and
+refuses while main has an open CodeQL alert of severity high or critical
+(<code>scripts/check-gate-runs.sh</code>); it checks again right before it tags the image
+and right before it publishes, names the tag in the request that publishes the
+draft, and reads the release back under that tag. The job that uploads the
+client to the package index first checks the released commit's own CI and
+Security push runs on main, so a re-run still works once main has moved on.</p>
 <p>Also an OCI image of the gateway, <code>ghcr.io/guardana/control-gateway</code>, for
 linux/amd64 and linux/arm64 on a distroless nonroot base, signed and attested by
 digest the same way, its digest named in the release notes
@@ -1443,7 +1545,7 @@ this:</p>
 </tr>
 <tr>
 <td>Attempts to gain access</td>
-<td>Each refusal the pipeline decides is counted in <code>/metrics</code>, and recorded with its reason codes unless the call's identifiers name no trail, its request id already has an open trail, or the sink refuses one of its events; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; within one run, <code>supervise</code> reports repeated denials of a tool and, under a <code>0.2</code> procedure, a denied action retried with other arguments, through another tool or upstream on the same resource, or around the plane as a source reports it, and the calls of one resource binding that reach more than one resource</td>
+<td>Each refusal the pipeline decides is counted in <code>/<wbr/>metrics</code>, and recorded with its reason codes unless the call's identifiers name no trail, its request id already has an open trail, or the sink refuses one of its events; a request the listener refuses for its origin or its run token is not recorded, and only run token refusals are counted; within one run, <code>supervise</code> reports repeated denials of a tool and, under a <code>0.2</code> procedure, a denied action retried with other arguments, through another tool or upstream on the same resource, or around the plane as a source reports it, and the calls of one resource binding that reach more than one resource</td>
 </tr>
 <tr>
 <td>Quality: finished, not degraded, nothing skipped</td>
@@ -1530,7 +1632,10 @@ never withheld from the open build, whatever its status above.</p>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -1542,11 +1647,13 @@ never withheld from the open build, whatever its status above.</p>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -1562,6 +1669,7 @@ never withheld from the open build, whatever its status above.</p>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -1576,11 +1684,15 @@ never withheld from the open build, whatever its status above.</p>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -1615,7 +1727,7 @@ never withheld from the open build, whatever its status above.</p>
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

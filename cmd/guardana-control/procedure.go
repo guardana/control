@@ -54,9 +54,9 @@ func procedureLint(path string, stdout, stderr io.Writer) int {
 // procedureTest supervises each case of the cases document at path and
 // compares what was found with what the case expects, exactly. It prints
 // `ok   name: findings` or `FAIL name: what differed` per case and a
-// summary, and exits 1 when any case fails. A document it cannot read, a
-// procedure the reader refuses or an export it cannot read is refused
-// before any case runs: exit 2, nothing on stdout.
+// summary, and exits 1 when any case fails or the report cannot be written.
+// A document it cannot read, a procedure the reader refuses or an export it
+// cannot read is refused before any case runs: exit 2, nothing on stdout.
 func procedureTest(path string, stdout, stderr io.Writer) int {
 	doc, err := readCasesFile(path)
 	if err != nil {
@@ -76,7 +76,7 @@ func procedureTest(path string, stdout, stderr io.Writer) int {
 	lines = append(lines, fmt.Sprintf("procedure %s version %s: %d cases, %d passed, %d failed",
 		doc.procedure.ID(), doc.procedure.Version(), len(doc.cases), passed, len(doc.cases)-passed))
 	if err := writeLines(stdout, lines); err != nil {
-		return usageError(stderr, procedureTestName, err.Error())
+		return fail(stderr, procedureTestName, err)
 	}
 	if passed != len(doc.cases) {
 		return exitFail
@@ -85,16 +85,12 @@ func procedureTest(path string, stdout, stderr io.Writer) int {
 }
 
 // evaluateCase supervises in with each source under the run's tenant and the
-// project its events name: a case's source has no descriptor, so no identity
-// of its own.
+// project its record names: a case's source has no descriptor, so no
+// identity of its own.
 func evaluateCase(in supervise.Input) (*supervise.Result, error) {
-	project, err := supervise.RunProject(in)
-	if err != nil {
-		return nil, err
-	}
 	in.Sources = slices.Clone(in.Sources)
 	for i := range in.Sources {
-		in.Sources[i].Tenant, in.Sources[i].Project = in.Run.Tenant, project
+		in.Sources[i].Tenant, in.Sources[i].Project = in.Run.Tenant, in.Run.Project
 	}
 	return supervise.Evaluate(in)
 }

@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -268,7 +278,7 @@ receive time; one heard after the command's clock is unknown.</p>
 <p>Beside an enforced or decided path, each matching observation is checked
 against the exports of the planes that count for it. It is joined when a
 whole export holds, for it or an observation below it in the same trace,
-tenant and project, the span id of a tool call's proposal for that tool on that upstream, or for an
+tenant and project, the span id of an MCP tool call's proposal for that tool on that upstream, or for an
 <code>enforce_tool</code> of that tool through the enforcement API, in the same tenant
 and project, recorded in a mode
 at least as strong as the path's state. A call every such plane's export could
@@ -309,7 +319,7 @@ rest, a port the log did not give as <code>unknown</code>, and ends <code>no pla
 <code>internal/coverage/undeclared.go</code>); one line counts the hosts past that. An
 agent chooses the hosts it reaches, so it can push one past the cut by
 reaching 256 that sort before it; the cut still makes the exit 1. The line
-names no digest of the hosts cut, since a digest names none of them; the log
+names no digest of the hosts cut; the log
 holds every one, and <code>observe export</code> lists them.</p>
 <p>A line the importer refused is a connection whose host nobody read. Each
 egress source whose own import reports count one gets a row with the total
@@ -317,9 +327,8 @@ and the count by reason, from <code>refused</code> and <code>refused_by</code>, 
 and a count of the rest:</p>
 <pre><code>refused egress by egress-envoy: 2 lines refused, so their connections are unknown: destination 1, port 1; no plane decides egress
 </code></pre>
-<p>Each report counts what its own import refused, so a line two imports of
-the same file refused counts twice; the row stays until the observation log
-is rotated by hand.</p>
+<p>Each report counts its own import's refusals, so a line refused by two
+imports counts twice; the row stays until the log is rotated by hand.</p>
 <p>An egress source not live gets an unseen row, named by a path or not; a
 path naming it stays unknown:</p>
 <pre><code>unseen egress by egress-envoy: past its heartbeat: last heard 2026-10-04T10:00:01Z, heartbeat 300 s; connections since its last import are unseen; no plane decides egress
@@ -342,7 +351,7 @@ bits only, not an access control list or the file's owner
 </tr>
 <tr>
 <td>1</td>
-<td>a path is unknown or not covered; a call around the plane or a cut walk was found, since an agent chooses its spans and can cut a walk on purpose; an egress source reached a host no path declares, its row printed or cut; an egress import refused a line; or an egress source is not live</td>
+<td>a path is unknown or not covered; a call around the plane or a cut walk was found, as an agent chooses its spans; an egress source reached a host no path declares, its row printed or cut; an egress import refused a line; an egress source is not live; a source's log holds a write no import report closes; or writing the map failed</td>
 </tr>
 <tr>
 <td>2</td>
@@ -361,7 +370,10 @@ bits only, not an access control list or the file's owner
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -373,11 +385,13 @@ bits only, not an access control list or the file's owner
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -393,6 +407,7 @@ bits only, not an access control list or the file's owner
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -407,11 +422,15 @@ bits only, not an access control list or the file's owner
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -446,7 +465,7 @@ bits only, not an access control list or the file's owner
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

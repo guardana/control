@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture" aria-current="page">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -218,67 +228,67 @@ local approvals page.</p>
 <tbody>
 <tr>
 <td>MCP adapter</td>
-<td><code>adapters/mcp/</code></td>
+<td><code>adapters/<wbr/>mcp/</code></td>
 <td>Listens toward the agent, speaks to each upstream server, translates a call into an envelope and shapes every answer the agent sees.</td>
 </tr>
 <tr>
 <td>Pipeline</td>
-<td><code>internal/gateway/</code></td>
+<td><code>internal/<wbr/>gateway/</code></td>
 <td>Protocol-neutral: admits an envelope, asks the kernel and, when the decision turns on it, the external decision point, applies the enforcement mode, holds a call for approval, writes the trail.</td>
 </tr>
 <tr>
 <td>Decision kernel</td>
-<td><code>internal/core/</code></td>
+<td><code>internal/<wbr/>core/</code></td>
 <td>The fixed order of checks, the fail-closed table and the delegation check; <code>Decide</code> once per admitted call, again with the external decision point's answer when the decision turns on it, and again when a rewriting obligation changes the arguments.</td>
 </tr>
 <tr>
 <td>Policy</td>
-<td><code>internal/policy/</code></td>
+<td><code>internal/<wbr/>policy/</code></td>
 <td>Parses a document, verifies a bundle's signature and a freshness statement's, holds one snapshot and its serial floor, and matches three-valued.</td>
 </tr>
 <tr>
 <td>Policy refresh</td>
-<td><code>internal/policywatch/</code>, <code>internal/policystate/</code></td>
+<td><code>internal/<wbr/>policywatch/</code>, <code>internal/<wbr/>policystate/</code></td>
 <td>Reads the bundle and the statement again every poll, installs a newer bundle only with its statement, and keeps the serial floor on disk.</td>
 </tr>
 <tr>
 <td>Canonical digest</td>
-<td><code>internal/canon/</code></td>
+<td><code>internal/<wbr/>canon/</code></td>
 <td>The one digest an approval binds to.</td>
 </tr>
 <tr>
 <td>Evidence chain</td>
-<td><code>internal/evidence/</code></td>
+<td><code>internal/<wbr/>evidence/</code></td>
 <td>The event chain in memory and the <code>Sink</code> seam the spool implements.</td>
 </tr>
 <tr>
 <td>Spool</td>
-<td><code>internal/spool/</code></td>
+<td><code>internal/<wbr/>spool/</code></td>
 <td>The segmented log on disk with a budget, a quarantine and recovery.</td>
 </tr>
 <tr>
 <td>AuthZEN client</td>
-<td><code>adapters/authzen/</code></td>
+<td><code>adapters/<wbr/>authzen/</code></td>
 <td>Asks the organization's decision point about one call whose decision turns on its answer, and reads the answer strictly; the answer can only veto.</td>
 </tr>
 <tr>
 <td>OTLP exporter</td>
-<td><code>adapters/otel/</code></td>
+<td><code>adapters/<wbr/>otel/</code></td>
 <td>Drains the spool to a collector and acknowledges only the protocol's own answer.</td>
 </tr>
 <tr>
 <td>Approval store</td>
-<td><code>internal/approvals/</code></td>
+<td><code>internal/<wbr/>approvals/</code></td>
 <td>Reads and checks the records in the approvals directory and, under <code>signed</code>, the operators' signed answers in the inbox; the pipeline compares an answer with its own record of the hold.</td>
 </tr>
 <tr>
 <td>Hold journal</td>
-<td><code>internal/holdjournal/</code></td>
+<td><code>internal/<wbr/>holdjournal/</code></td>
 <td>The plane's own durable record of its holds, so the next start closes the trail of one it lost, or counts it left open.</td>
 </tr>
 <tr>
 <td>Commands</td>
-<td><code>cmd/guardana-control/</code></td>
+<td><code>cmd/<wbr/>guardana-control/</code></td>
 <td>The <code>policy</code>, <code>approvals</code>, <code>operators</code>, <code>pause</code> and <code>runs</code> commands and the <code>console</code> page, without a plane; <code>observe</code>, <code>coverage</code>, <code>supervise</code> and <code>notify</code> read files after the fact.</td>
 </tr>
 </tbody>
@@ -488,87 +498,87 @@ and audited by someone who did not write it.</li>
 </thead>
 <tbody>
 <tr>
-<td><code>api/proto/guardana/control/v1/</code></td>
+<td><code>api/<wbr/>proto/<wbr/>guardana/<wbr/>control/<wbr/>v1/</code></td>
 <td>Protobuf contracts, the source of truth, frozen at <code>1.0</code></td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>api/gen/go/</code></td>
+<td><code>api/<wbr/>gen/<wbr/>go/</code></td>
 <td>Generated Go, committed so a consumer needs no plugin chain</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>testdata/contracts/</code></td>
+<td><code>testdata/<wbr/>contracts/</code></td>
 <td>Fixtures the round-trip tests read</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/contract/</code></td>
+<td><code>internal/<wbr/>contract/</code></td>
 <td>The round-trip tests over those fixtures</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>pkg/contract/</code></td>
+<td><code>pkg/<wbr/>contract/</code></td>
 <td>Bounded validation and strict decoding of the contracts</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/canon/</code></td>
+<td><code>internal/<wbr/>canon/</code></td>
 <td>The canonical action digest an approval binds to</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/evidence/</code></td>
+<td><code>internal/<wbr/>evidence/</code></td>
 <td>The evidence event chain, in memory</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/policy/reasons/</code></td>
+<td><code>internal/<wbr/>policy/<wbr/>reasons/</code></td>
 <td>The reason-code registry</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/core/</code></td>
+<td><code>internal/<wbr/>core/</code></td>
 <td>The decision kernel, <a href="/docs/adr/0012-policy-kernel-semantics">ADR-0012</a></td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/gateway/</code></td>
+<td><code>internal/<wbr/>gateway/</code></td>
 <td>The protocol-neutral enforcement pipeline, <a href="/docs/adr/0013-mcp-interception-approvals-and-modes">ADR-0013</a></td>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>internal/spool/</code></td>
+<td><code>internal/<wbr/>spool/</code></td>
 <td>The evidence spool on disk, <a href="/docs/adr/0014-evidence-spool-and-sinks">ADR-0014</a></td>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>internal/gatewayconfig/</code></td>
+<td><code>internal/<wbr/>gatewayconfig/</code></td>
 <td>The gateway's configuration: its fields, the file reader and the loader</td>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>internal/brand/</code></td>
+<td><code>internal/<wbr/>brand/</code></td>
 <td>The product name every other package reads</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/approvals/</code>, <code>internal/holdjournal/</code></td>
+<td><code>internal/<wbr/>approvals/</code>, <code>internal/<wbr/>holdjournal/</code></td>
 <td>The approvals directory and inbox, and the plane's hold journal and ledger, <a href="/docs/adr/0016-approval-providers-and-the-lost-hold">ADR-0016</a>, <a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a></td>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>cmd/guardana-control/</code></td>
+<td><code>cmd/<wbr/>guardana-control/</code></td>
 <td>The <code>policy</code> commands</td>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>cmd/guardana-control/</code></td>
+<td><code>cmd/<wbr/>guardana-control/</code></td>
 <td>The <code>approvals</code>, <code>pause</code>, <code>runs</code>, <code>observe</code>, <code>coverage</code>, <code>supervise</code> and <code>notify</code> commands and the <code>console</code> page</td>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>cmd/guardana-gateway/</code></td>
+<td><code>cmd/<wbr/>guardana-gateway/</code></td>
 <td>The plane: <code>run</code>, <code>doctor</code>, <code>collect</code>, <code>trail</code>, <code>prune</code>, <code>scenario</code> and <code>dev</code></td>
 <td><code>experimental</code></td>
 </tr>
@@ -578,7 +588,7 @@ and audited by someone who did not write it.</li>
 <td><code>implemented</code></td>
 </tr>
 <tr>
-<td><code>internal/docscheck/</code></td>
+<td><code>internal/<wbr/>docscheck/</code></td>
 <td>The documentation gate, run by <code>make docs-check</code></td>
 <td><code>implemented</code></td>
 </tr>
@@ -593,7 +603,7 @@ and audited by someone who did not write it.</li>
 <td><code>planned</code></td>
 </tr>
 <tr>
-<td><code>adapters/mcp/</code>, <code>adapters/otel/</code>, <code>adapters/authzen/</code></td>
+<td><code>adapters/<wbr/>mcp/</code>, <code>adapters/<wbr/>otel/</code>, <code>adapters/<wbr/>authzen/</code></td>
 <td>The MCP adapter, the OTLP exporter and collector, and the AuthZEN client</td>
 <td><code>experimental</code></td>
 </tr>
@@ -603,12 +613,12 @@ and audited by someone who did not write it.</li>
 <td><code>planned</code></td>
 </tr>
 <tr>
-<td><code>internal/ingest/</code>, <code>internal/coverage/</code></td>
+<td><code>internal/<wbr/>ingest/</code>, <code>internal/<wbr/>coverage/</code></td>
 <td>The importers of observations and the coverage map, <a href="/docs/adr/0040-observations-a-record-a-log-and-one-importer">ADR-0040</a>, <a href="/docs/adr/0069-an-egress-proxys-access-log-is-an-independent-sensor-on-a-kind-neutral-descriptor">ADR-0069</a>, <a href="/docs/adr/0044-coverage-judges-each-plane-and-joins-only-a-whole-export">ADR-0044</a></td>
 <td><code>experimental</code></td>
 </tr>
 <tr>
-<td><code>internal/supervise/</code>, <code>internal/findinglog/</code>, <code>internal/notify/</code></td>
+<td><code>internal/<wbr/>supervise/</code>, <code>internal/<wbr/>findinglog/</code>, <code>internal/<wbr/>notify/</code></td>
 <td>One run checked against its procedure, the findings log and the notifier, <a href="/docs/adr/0045-one-run-is-supervised-against-its-procedure">ADR-0045</a></td>
 <td><code>experimental</code></td>
 </tr>
@@ -626,7 +636,10 @@ and audited by someone who did not write it.</li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -638,11 +651,13 @@ and audited by someone who did not write it.</li>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture" aria-current="page">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -658,6 +673,7 @@ and audited by someone who did not write it.</li>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -672,11 +688,15 @@ and audited by someone who did not write it.</li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -711,7 +731,7 @@ and audited by someone who did not write it.</li>
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

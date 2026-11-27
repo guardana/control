@@ -271,7 +271,11 @@ resource id it takes off becomes `overlong:sha256:` followed by the lower-case
 hex SHA-256 of the original bytes, 80 bytes in all, so the recorded proposal
 keeps the fields the contract requires and can be tied to what was sent
 ([ADR-0043](adr/0043-a-refused-over-long-name-is-recorded-by-its-digest.md)).
-No policy reads it: the refusal stops the decision first.
+No policy reads it: the refusal stops the decision first. A called tool name,
+prompt name or resource URI that quotes a credential the plane holds, cannot
+be scanned or starts with `withheld:sha256:` is recorded as that prefix and
+the same digest of the name, and a policy reads that form
+([ADR-0042](adr/0042-an-answer-that-quotes-a-configured-credential-is-withheld.md)).
 
 The error types and the validation that returns them are `implemented`, and so
 is the mapping: the kernel in `internal/core` turns each refusal into the
@@ -823,7 +827,9 @@ even though the two values are equal: this call is the first place those bytes
 exist.
 
 The gateway sends the agent's own bytes upstream when no obligation rewrites
-them, and those bytes may spell a number differently from the canonical form:
+them, without the whitespace between tokens, which the protocol library
+removes from every message it writes; the closing record is told those bytes.
+They may still spell a number differently from the canonical form:
 `1.0` where the digest holds `1`. The digest binds a number's value, not its
 spelling, its scale or whether it was written as an integer, so an upstream
 that reads `1.0` as a float and `1` as an integer sees a difference the digest
@@ -1169,7 +1175,7 @@ A gap's `reason` is one of:
 
 | `reason` | The line |
 | --- | --- |
-| `malformed` | is not one `Event` under the codec's rules: not JSON, an unknown field, a blank line |
+| `malformed` | is not one `Event` under the codec's rules: not JSON, an unknown field, a blank line; or holds a `null`, which the codec reads as an absent member, never writes, and a reader of the export refuses in a record |
 | `too_long` | is longer than the codec's line bound, `evidence.MaxLineBytes` |
 | `unsupported_version` | is an event `evidence.CheckEventVersion` refuses |
 | `conflicting_event_id` | carries the event id of a line this export read before it, written or passed by the filters, with other content |
@@ -1185,7 +1191,9 @@ them, `writer_held` is `true`, and the next export reads them once they end.
 Whether a writer holds the file is asked only when such bytes exist. When none
 holds it they are a `partial_tail` gap. A gap takes a record like any other, so
 an export whose limit leaves no room for it ends with `end_reached` false and
-the next export writes it.
+the next export writes it. A reader refuses an export whose trailer counts
+such bytes with `end_reached` true, `writer_held` false and no
+`partial_tail` gap.
 
 `end_reached` is `true` when every whole line was read and the bytes after the
 last newline were reported.
@@ -1225,11 +1233,16 @@ their cursors apart, and a segment keeps its key when it is sealed. The
 header's `file` is the segment's.
 
 - Without `--after` the export reads the first segment not pruned.
-- `end_reached` is `true` only at the end of the last segment that held a line
-  when the export began. At the end of an earlier one it is `false`, and the
-  export after its `next_cursor` reads the next segment from its first line. A
-  reader that follows `next_cursor` until `end_reached` reads every line of
-  every segment not pruned once.
+- `end_reached` is `true` only at the end of the last segment that held a line,
+  or bytes no newline ends, when the export began. At the end of an earlier one
+  it is `false`, and the export after its `next_cursor` reads the next segment
+  from its first line, or reports those bytes. A reader that follows
+  `next_cursor` until `end_reached` reads every line of every segment not
+  pruned once.
+- An event of another tenant or project than the one the log is bound to,
+  which no collector writes and the log refuses at open, stops the export
+  before its record, exit 2, with no trailer. `trail <dir>` and a scenario
+  reading the log refuse it too.
 - A cursor of a pruned segment is refused as expired, exit 2; one whose key no
   segment the manifest names has, as another file. A cursor at a sealed
   segment's end moves on only when its line digest is that of the segment's
@@ -1246,6 +1259,8 @@ header's `file` is the segment's.
 - `source` changes from one segment's export to the next. A reader that keeps
   one takes a new one only from an export after its own cursor whose first
   record is at offset 0, which an export after a cursor in one file never is.
+  An export naming no `source` is of a live segment holding no whole line
+  yet: a reader keeps its cursor and source, and exports again later.
 
 ### The query
 
@@ -1419,7 +1434,12 @@ line 1 alone or names another route; a finding id two lines name; a stop the
 route does not permit, whose tenant is not the route's, whose procedure and
 rule are no rule of it, or whose expiry passes the rule's lifetime; a stop
 that names a superseded version of a rule the route names at its current
-version is judged as that rule, which only a carried list holds; a covered
+version is judged as that rule, and one that names `DEADLINE_EXCEEDED`,
+`DENIED_ACTION_RETRIED_ARGUMENTS` or `DENIED_ACTION_RETRIED_RESOURCE` at `1`,
+which no route may name any more, stands only if a rule of the route names
+its procedure at its scope, an agent or a principal only for a retry rule,
+and its span is within that rule's lifetime; only a carried list holds
+either; a covered
 line of another tenant; a `created_at` later than the reader's clock and its
 tolerance; and a lift that names a line at or after its own, names a run and
 line an earlier lift named, does not verify under the route's lift key, or
@@ -1473,9 +1493,10 @@ A list under a `v1alpha3` route is version `3.0`: its header line is
 line add `project_id`, `scope` and `subject`, and a `lift` line names `scope`
 and `subject` in place of `run_id` and holds a `v1alpha3` lift. Under scope
 `run` the subject is the line's `run_id`. Scope `agent` or `principal` is
-taken on a rule only for `REPEATED_DENIAL` `2`,
-`DENIED_ACTION_RETRIED_ARGUMENTS` `1` and `DENIED_ACTION_RETRIED_RESOURCE`
-`1`, each with `expires_seconds`; on a line its subject is the agent or the
+taken on a rule only for `REPEATED_DENIAL` `2`, with `expires_seconds`, and
+in the route a list is carried from for `DENIED_ACTION_RETRIED_ARGUMENTS` `1`
+and `DENIED_ACTION_RETRIED_RESOURCE` `1`, which may stop nothing new
+([ADR-0088](adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)); on a line its subject is the agent or the
 principal, at most 256 bytes, and `run_id` is the finding's run
 ([ADR-0083](adr/0083-a-finding-may-stop-an-agent-or-a-principal.md)). A
 header's digest is `sha256:` and the lowercase hex SHA-256 of its signed
@@ -1625,7 +1646,10 @@ the run and the operator's table of tools. The answer's `outcome` is one of:
 `decision` is the v1 `Decision` the outcome was answered from.
 
 A complete names the handle, the bytes that were sent, a `status`, the start
-and end times, a `result_hash` and a `side_effect_confirmation`. A client that
+and end times, a `result_hash` and a `side_effect_confirmation`. A
+`result_hash` is `sha256:` and 64 lower-case hex digits, or absent; any other
+text is refused as `ERROR_CODE_MALFORMED`, so a tool's output cannot reach the
+trail through it. A client that
 cannot tell whether the bytes left completes with `COMPLETION_STATUS_UNKNOWN`
 and never aborts. An abort names the handle and one cause:
 `ABORT_CAUSE_ARGUMENTS_DIFFER`, `ABORT_CAUSE_OBLIGATION` or

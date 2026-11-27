@@ -14,6 +14,9 @@ made it. It is an alpha and not a security boundary
 against it: an authorization service, a model gateway and operating-system
 isolation. Each answers a different question, and each combines with this one.
 
+For products that check an agent's tool calls against policy before they
+run, see the [comparison of Guardana Control and other tool call controls](agent-tool-call-controls.md).
+
 ## What this project does
 
 | It does | Status |
@@ -21,6 +24,7 @@ isolation. Each answers a different question, and each combines with this one.
 | Decide each MCP tool call, resource read and prompt from a signed policy before it reaches the server, and block, allow or hold it | `experimental`, [mcp-gateway](../status.md#mcp-gateway) |
 | Decide in a fixed order with a fail-closed table, so `INDETERMINATE` is never `ALLOW` | `implemented`, [decision-kernel](../status.md#decision-kernel) |
 | Let a person approve one exact call under one policy bundle, once | `implemented`, [approval-binding](../status.md#approval-binding) |
+| Compare a candidate policy with the current one over test cases and a plane's recorded requests, every result simulated | `experimental`, [candidate-policy](../status.md#candidate-policy) |
 | Answer a tool outside MCP that asks before it acts, which then enforces the answer itself | `experimental`, [enforce-receiver](../status.md#enforce-receiver) |
 | Import an agent's traces and an egress proxy's access log as observations, which decide nothing | `experimental`, [observations](../status.md#observations) |
 | Check one opened run against its procedure, and stop that run's later calls, or under `signed` its agent or principal, on a confirmed finding where a signed route allows it | `experimental`, [run-supervision](../status.md#run-supervision), [run-stop](../status.md#run-stop) |

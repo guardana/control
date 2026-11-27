@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"slices"
 	"time"
 
 	"github.com/guardana/control/internal/brand"
@@ -51,10 +50,9 @@ func (a stopsLiftArgs) usable(throughGiven bool) bool {
 }
 
 // endsAStop refuses a lift of target through line through that would end
-// none of list's stops: a stop of a run is never ended by a lift of its
-// agent, nor a stop of an agent by a lift of the run its finding was about.
+// none of list's stops, by the rule the writer and the judge hold it to.
 func endsAStop(list reaction.List, target reaction.Target, through int64) error {
-	if slices.ContainsFunc(list.Entries(), func(e reaction.Entry) bool { return e.Target() == target && e.Line <= through }) {
+	if list.Ends(target, through) {
 		return nil
 	}
 	return fmt.Errorf("%s %s has no stop through line %d for a lift to end", target.Scope, oneLine(target.Subject), through)
@@ -102,7 +100,7 @@ func stopsLiftCommand(args []string, stdout, stderr io.Writer) int {
 // route, the key, which must be the route's lift key, the list, a lift that
 // would end no stop, then the lift as the plane's judge reads it.
 func stopsLift(a stopsLiftArgs, dir string, now time.Time, stdout, stderr io.Writer) int {
-	route, err := a.verified(dir, &rosterNote{w: stderr, command: stopsLiftName})
+	route, err := a.liftable(dir, &rosterNote{w: stderr, command: stopsLiftName})
 	if err != nil {
 		return fail(stderr, stopsLiftName, err)
 	}
@@ -114,7 +112,7 @@ func stopsLift(a stopsLiftArgs, dir string, now time.Time, stdout, stderr io.Wri
 	if pub, _ := key.Public().(ed25519.PublicKey); !bytes.Equal(pub, route.LiftKey()) {
 		return fail(stderr, stopsLiftName, errors.New("--key: its public half is not the route's lift_public_key"))
 	}
-	list, _, err := judgedList(dir, route, now)
+	list, _, err := liftableList(dir, route, now)
 	if err != nil {
 		return fail(stderr, stopsLiftName, err)
 	}
@@ -149,11 +147,11 @@ func stopsLift(a stopsLiftArgs, dir string, now time.Time, stdout, stderr io.Wri
 // list's head, so it never verifies against another list. It says on
 // standard error what it signed.
 func stopsLiftSigned(a stopsLiftArgs, dir string, now time.Time, stdout, stderr io.Writer) int {
-	route, err := a.verified(dir, &rosterNote{w: stderr, command: stopsLiftName})
+	route, err := a.liftable(dir, &rosterNote{w: stderr, command: stopsLiftName})
 	if err != nil {
 		return fail(stderr, stopsLiftName, err)
 	}
-	list, _, err := judgedList(dir, route, now)
+	list, _, err := liftableList(dir, route, now)
 	if err != nil {
 		return fail(stderr, stopsLiftName, err)
 	}

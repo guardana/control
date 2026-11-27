@@ -32,6 +32,9 @@ Guardana Control puts your rules between an AI agent and its tools. Each call th
 - Check a recorded run against its procedure, and stop that run's later calls,
   or under signed authority its agent's or principal's, through a signed route
   (`experimental`).
+- Compare current and candidate policies on test cases and recorded evidence
+  with kernel evaluation. Changed decisions are marked simulated, unjudged
+  cases are counted apart, and no policy activates (`experimental`).
 - Read each decision with the policy version that made it, and see in the
   coverage map which paths nobody observed (`experimental`).
 
@@ -75,6 +78,7 @@ goes on with a pause, the counters and the demo's scenarios.
 guardana-gateway run --config <file>
 guardana-control policy test <dir>
 guardana-control policy sign --key <file> --out <file> <document>
+guardana-control policy compare --current <document> --candidate <document> --report <file>
 guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --findings <dir>
 ```
 
@@ -85,6 +89,10 @@ guardana-control supervise --procedure <file> --runs <dir> --run <run-id> --find
   [write and test a policy](docs/guides/write-and-test-a-policy.md).
 - `supervise` compares a recorded run with its procedure:
   [supervise and stop a run](docs/guides/supervise-and-stop-a-run.md).
+
+Read the risk references for [agentic applications](docs/reference/risks/owasp-agentic-top-10.md),
+[LLM applications](docs/reference/risks/owasp-llm-top-10.md), and
+[recent advisories](docs/reference/risks/advisories.md).
 
 Each release has archives of both binaries for Linux and macOS on amd64 and
 arm64, with a signed `checksums.txt`. With Go 1.27.4 or later:
@@ -112,3 +120,5 @@ run. The projects are independent.
 
 [Governance](GOVERNANCE.md) · [Decision records](docs/adr/README.md) ·
 [Code of conduct](CODE_OF_CONDUCT.md) · [Trademarks](TRADEMARKS.md)
+
+[Star Guardana Control on GitHub](https://github.com/guardana/control) to help others find it.

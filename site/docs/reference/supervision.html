@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -121,7 +131,7 @@
 </details>
 <main id="main" class="prose">
 <h1 id="supervision">Supervision</h1>
-<p><code>guardana-control supervise</code> checks a run an operator opened against its
+<p><code>guardana-control supervise</code> checks an opened run against its
 procedure, from plane evidence and runtime reports, and
 appends findings to a log.
 <code>guardana-control notify</code> hands each alert in that log to a program of the
@@ -136,7 +146,7 @@ no plane reads what they write
     [--view &lt;file&gt; [--view-all]]
     [--roster &lt;file&gt; --root-key &lt;file&gt; --tenant &lt;t&gt; --project &lt;p&gt;]
 guardana-control notify --findings &lt;dir&gt; --state &lt;dir&gt; [--init] [--timeout &lt;duration&gt;]
-    -- &lt;program&gt; [&lt;arg&gt;]...
+    [--env &lt;name&gt;]... -- &lt;program&gt; [&lt;arg&gt;]...
 </code></pre>
 <h2 id="the-procedure">The procedure</h2>
 <p>A strict JSON document of at most 64 KiB: an unknown or repeated member, a
@@ -207,11 +217,9 @@ Observations count when their correlation is claimed, with such a run id,
 tenant and project; a 33rd <code>--source</code>, one of another tenant or project, or
 of a kind naming no run (<a href="/docs/reference/observations#the-source-descriptor">observations</a>), is
 refused. Only a tool call is a step. An observation joined to a plane event
-by trace and span id is that call; a join cut short leaves
-<code>STEP_OUTSIDE_PROCEDURE</code> and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked,
-findings kept. Everything else is counted and left out.</p>
-<p>The procedure, descriptors and evidence exports must be regular
-files of this account that only it can write: a <code>CONFIRMED</code> finding rests on
+by trace and span id is that call. Everything else is counted and left out.</p>
+<p>The procedure, descriptors and exports must be regular files only this
+account can write: a <code>CONFIRMED</code> finding rests on
 the export being the plane's.</p>
 <h2 id="the-rules">The rules</h2>
 <div class="tbl">
@@ -261,7 +269,7 @@ the export being the plane's.</p>
 </tr>
 <tr>
 <td><code>DENIED_ACTION_RETRIED_AROUND</code></td>
-<td>a source reports the denied tool after the denial, joined to no plane call; not checked with no <code>--source</code> or one unread or unheard</td>
+<td>a source reports the denied tool after the denial, joined to no plane call; <code>INDETERMINATE</code>, no importer stamping a call's start; not checked with no <code>--source</code></td>
 </tr>
 <tr>
 <td><code>EXCEPTION_TAKEN</code></td>
@@ -274,28 +282,30 @@ the export being the plane's.</p>
 has no time, or between two of one instant. A retry continues nothing, though
 each denial of it counts toward <code>REPEATED_DENIAL</code>; an approved call, no
 retry, belongs to the step it held. Plane calls order by the plane's times, never by place in
-an export; a retry confirms only when one export holds both.</p>
+an export. No event names its plane, so the deadline and the retries are
+<code>SUSPECTED</code> at most (<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>).</p>
 <h2 id="the-verdict">The verdict</h2>
 <p>The weakest of what a finding rests on. Plane events in an unbroken chain can
 make it <code>CONFIRMED</code>; an observation makes it <code>SUSPECTED</code>; a record in doubt,
-<code>INDETERMINATE</code>. So are a silent source's observations. A request with
+<code>INDETERMINATE</code>, as are a silent source's observations. A request with
 conflicting copies, a broken chain or events of two runs leaves no rule
-checked; an observation
-with two contents, or a judged run its source doubts, until the log is rotated
-(<a href="/docs/reference/observations#the-log">observations</a>), leaves <code>STEP_OUTSIDE_PROCEDURE</code>
-and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked.
+checked; an unended request, unless held on an open run, none on how a call ends; an observation
+with two contents, a judged run its source doubts until the log is rotated
+(<a href="/docs/reference/observations#the-log">observations</a>), a join cut short, a source
+sampled, silent, unheard or unread, or an unclosed write leaves
+<code>STEP_OUTSIDE_PROCEDURE</code> and <code>DENIED_ACTION_RETRIED_AROUND</code> not checked,
+findings kept.
 The step rules rest on something not seen:
 <code>SUSPECTED</code> at most, <code>INDETERMINATE</code> while a <code>--source</code> is absent, never
 heard or silent, and checked only on a closed run whose exports are whole.
-Under <code>0.2</code> a finding confirms on its run's own events alone, save the
-deadline and a retry by a descendant of the denied run; one that needs
-another run's events is <code>SUSPECTED</code> at most.</p>
+Under <code>0.2</code> a finding confirms on its own run's events; one needing
+another run's is <code>SUSPECTED</code> at most.</p>
 <h2 id="output-and-exit-status">Output and exit status</h2>
 <p>After the run's line come, under <code>0.2</code>, its children mode and a <code>tree:</code> line
 per run; a line per step, its requests apart from the observations no plane
 call joins; per finding, with its run under <code>0.2</code> and the references it left
 out; per rule; and <code>not checked: source &lt;path&gt; absent</code>, <code>&lt;id&gt; never heard</code>
-or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged against.</p>
+or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged.</p>
 <div class="tbl">
 <table>
 <thead>
@@ -320,15 +330,14 @@ or <code>&lt;id&gt; silent</code> for each <code>--source</code> not judged agai
 </tbody>
 </table>
 </div>
-<p>The log is opened, and <code>findings.jsonl</code> created, only once every input is
-accepted. A failure after the write commits exits 2 and keeps it.</p>
+<p>The log opens only after every input is accepted. A failure after the write commits exits 2 and keeps it.</p>
 <h2 id="the-finding-record-and-its-log">The finding record and its log</h2>
 <p><code>guardana.control.finding.v1alpha1</code>, outside the v1 promise. A
 <code>FindingRecord</code> holds the tenant, project, procedure (id, version, digest),
 escalation, references to plane events and observations and a v1
-finding with its id, rule, severity, verdict and run. Its id is
-<code>fnd-</code> and 32 hex digits, a function of the run, the procedure, the rule and
-its version, and what it is about, so a rerun finds the same ids. The log,
+finding with its id, rule, severity, verdict and run. Its id,
+<code>fnd-</code> and 32 hex digits, is a function of the run, the procedure, the rule,
+its version and what it is about, so a rerun finds the same ids. The log,
 <code>findings.jsonl</code>, is JSON Lines in an owner-only directory. The command writes only when it read an event
 of the run, ending its write with a <code>SuperviseReport</code>; a write without one
 is never read.</p>
@@ -365,26 +374,26 @@ is never read.</p>
 </tr>
 <tr>
 <td><code>LogHeader</code></td>
-<td>a new log's first line: <code>log_id</code>, <code>log-</code> and 32 hex digits of 128 random bits</td>
+<td>a new log's first line: <code>log_id</code>, <code>log-</code> and 32 random hex digits</td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The reader refuses an unknown schema or a member its schema lacks.</p>
+<p>The reader refuses an unknown schema, a member its schema lacks or one at
+its default.</p>
 <h2 id="notify">notify</h2>
-<p><code>notify</code> hands each <code>alert</code> record, in log order, one line on its
-standard input, to the program after <code>--</code>, without a shell, and kills its
-process group at the timeout (30 s by default) and again once the program
-exits. A delivery is keyed on the
-finding id and verdict and marked in the state only after the program exits
-0, so a crash delivers that record again: a receiver drops a key it has
-seen. The state is an owner-only directory, locked while in use; <code>--init</code>
-starts one and is refused over one. The next run retries a failed delivery,
-and only a new state repeats a delivered one. Exit 0 when nothing
-failed; 1 when a delivery failed, on an interrupt, or when the run stopped
-after a program had run (a mark not on disk, a log
-changed under it); 2, printing nothing, when the state or the log is refused
-before any program ran.</p>
+<p><code>notify</code> hands each <code>alert</code> record, in log order, one line on standard
+input, to the program after <code>--</code>, without a shell, with only <code>PATH</code>,
+<code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code> of its environment; name any
+other it needs with <code>--env</code>, refused if unset. Its process group is killed
+at the timeout (default 30 s) and on exit. A delivery, keyed by finding id
+and verdict, is marked only once the program took its whole line and exited
+0, so a crash delivers it again; receivers drop seen keys. The owner-only
+state is locked in use; <code>--init</code> starts one, refused over one. A failed
+delivery is retried; a new state alone repeats a delivered one. Exit 0 when
+nothing failed; 1 when a delivery failed, on an interrupt, on an unclosed
+write no writer holds, or when the run stopped after a program ran; 2,
+printing nothing, on a state, log or <code>--env</code> refused before any program ran.</p>
 <h2 id="findings-export">findings export</h2>
 <pre><code>guardana-control findings export --findings &lt;dir&gt; [--after &lt;cursor&gt;] [--limit &lt;n&gt;]
     [--max-bytes &lt;n&gt;]
@@ -409,7 +418,10 @@ first line; the trailer's <code>identity</code> says <code>log_id</code>, <code>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -421,11 +433,13 @@ first line; the trailer's <code>identity</code> says <code>log_id</code>, <code>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -441,6 +455,7 @@ first line; the trailer's <code>identity</code> says <code>log_id</code>, <code>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -455,11 +470,15 @@ first line; the trailer's <code>identity</code> says <code>log_id</code>, <code>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -494,7 +513,7 @@ first line; the trailer's <code>identity</code> says <code>log_id</code>, <code>
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

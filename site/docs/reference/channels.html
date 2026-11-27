@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels" aria-current="page">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -127,62 +137,13 @@ first column. Each detail is on its own page: what a record holds on
 <a href="/docs/concepts/privacy">privacy</a>, what each declared path got on
 <a href="/docs/reference/coverage">coverage</a>, and the MCP methods on
 <a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a>.</p>
-<div class="tbl">
-<table>
-<thead>
-<tr>
-<th>Channel</th>
-<th>Sees</th>
-<th>Keeps</th>
-<th>Decides</th>
-<th>Enforces</th>
-<th>Bypasses that remain</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="/docs/status#mcp-gateway">MCP gateway</a></td>
-<td>the <code>tools/call</code>, <code>resources/read</code> and <code>prompts/get</code> a client sends through it, and each upstream's tool list</td>
-<td>per call, evidence events: the arguments' and the result's hashes, the resource id an override points to, a resource's URI or a prompt's name, and the decision; never the arguments or the result</td>
-<td>each call, from the signed policy, before the server sees it</td>
-<td>yes, inline: outside <code>OBSERVE</code> a blocked call or a held request never reaches the server, and an allowed one carries only the authorized bytes</td>
-<td>a client that reaches a server directly; the caller is the configured principal, not a login; the methods on <a href="/docs/reference/mcp-coverage#what-the-gateway-cannot-do">what the gateway cannot do</a></td>
-</tr>
-<tr>
-<td><a href="/docs/status#enforce-receiver">Enforcement API</a></td>
-<td>the calls a tool outside MCP admits, completes and aborts on the plane's Unix socket, built from its run token and the operator's <code>tools</code> table</td>
-<td>the same evidence events, and a side effect's confirmation the tool reports, at most 1024 bytes</td>
-<td>each admitted call, from the same policy</td>
-<td>no: the client enforces the answer, and nothing proves it obeyed</td>
-<td>a tool that never asks, or ignores the answer; <a href="/docs/reference/coverage">coverage</a> counts its tools decided, not enforced</td>
-</tr>
-<tr>
-<td><a href="/docs/status#hook-bridge">Hook bridge</a></td>
-<td>the tool calls a coding runtime's hooks report, through <code>guardana-control hook</code> and the enforcement API</td>
-<td>as the enforcement API; between admit and completion the bridge keeps the execution's handle in its state directory</td>
-<td>each call the hooks admit</td>
-<td>through the runtime: the bridge answers silence or a block status, so it can only take a call away</td>
-<td>what starts no hook, a process a shell command starts, and an agent that reaches the plane's directories from its own account: the <a href="/docs/reference/claude-code-hooks#gaps-and-bypasses">profile's gaps</a></td>
-</tr>
-<tr>
-<td><a href="/docs/status#observations">Egress access log</a></td>
-<td>the connections an egress proxy logged: time, host, port, method, status, byte counts, and the caller as the proxy wrote it</td>
-<td>those, in the observation log; nothing else of the line, such as a path, query, header or body</td>
-<td>nothing</td>
-<td>nothing: no plane decides egress</td>
-<td>traffic that does not cross the proxy; no connection names a run, and <code>supervise</code> refuses such a source; <code>TRUST_INDEPENDENT</code> is the operator's word on an unsigned descriptor</td>
-</tr>
-<tr>
-<td><a href="/docs/status#observations">Imported traces</a></td>
-<td>the spans the agent's runtime emitted under the OpenTelemetry GenAI conventions 1.41.0: tool, agent and model operations</td>
-<td>the span's end time, its trace, span and parent span ids, its status, the operation, the tool, agent or model name, the provider, the server address, the error type and the run attribute; never a prompt, an output or reasoning</td>
-<td>nothing</td>
-<td>nothing</td>
-<td>the agent's own process writes the spans, so what it leaves out is unseen, and the source may not declare <code>TRUST_INDEPENDENT</code></td>
-</tr>
-</tbody>
-</table>
-</div>
+<ul class="stack">
+<li><p class="rt"><a href="/docs/status#mcp-gateway">MCP gateway</a></p><dl><dt>Sees</dt><dd>the <code>tools/<wbr/>call</code>, <code>resources/<wbr/>read</code> and <code>prompts/<wbr/>get</code> a client sends through it, and each upstream's tool list</dd><dt>Keeps</dt><dd>per call, evidence events: the arguments' and the result's hashes, the resource id an override points to, a resource's URI or a prompt's name, and the decision; never the arguments or the result</dd><dt>Decides</dt><dd>each call, from the signed policy, before the server sees it</dd><dt>Enforces</dt><dd>yes, inline: outside <code>OBSERVE</code> a blocked call or a held request never reaches the server, and an allowed one carries only the authorized bytes</dd><dt>Bypasses that remain</dt><dd>a client that reaches a server directly; the caller is the configured principal, not a login; the methods on <a href="/docs/reference/mcp-coverage#what-the-gateway-cannot-do">what the gateway cannot do</a></dd></dl></li>
+<li><p class="rt"><a href="/docs/status#enforce-receiver">Enforcement API</a></p><dl><dt>Sees</dt><dd>the calls a tool outside MCP admits, completes and aborts on the plane's Unix socket, built from its run token and the operator's <code>tools</code> table</dd><dt>Keeps</dt><dd>the same evidence events, and a side effect's confirmation the tool reports, at most 1024 bytes</dd><dt>Decides</dt><dd>each admitted call, from the same policy</dd><dt>Enforces</dt><dd>no: the client enforces the answer, and nothing proves it obeyed</dd><dt>Bypasses that remain</dt><dd>a tool that never asks, or ignores the answer; <a href="/docs/reference/coverage">coverage</a> counts its tools decided, not enforced</dd></dl></li>
+<li><p class="rt"><a href="/docs/status#hook-bridge">Hook bridge</a></p><dl><dt>Sees</dt><dd>the tool calls a coding runtime's hooks report, through <code>guardana-control hook</code> and the enforcement API</dd><dt>Keeps</dt><dd>as the enforcement API; between admit and completion the bridge keeps the execution's handle in its state directory</dd><dt>Decides</dt><dd>each call the hooks admit</dd><dt>Enforces</dt><dd>through the runtime: the bridge answers silence or a block status, so it can only take a call away</dd><dt>Bypasses that remain</dt><dd>what starts no hook, a process a shell command starts, and an agent that reaches the plane's directories from its own account: the <a href="/docs/reference/claude-code-hooks#gaps-and-bypasses">profile's gaps</a></dd></dl></li>
+<li><p class="rt"><a href="/docs/status#observations">Egress access log</a></p><dl><dt>Sees</dt><dd>the connections an egress proxy logged: time, host, port, method, status, byte counts, and the caller as the proxy wrote it</dd><dt>Keeps</dt><dd>those, in the observation log; nothing else of the line, such as a path, query, header or body</dd><dt>Decides</dt><dd>nothing</dd><dt>Enforces</dt><dd>nothing: no plane decides egress</dd><dt>Bypasses that remain</dt><dd>traffic that does not cross the proxy; no connection names a run, and <code>supervise</code> refuses such a source; <code>TRUST_INDEPENDENT</code> is the operator's word on an unsigned descriptor</dd></dl></li>
+<li><p class="rt"><a href="/docs/status#observations">Imported traces</a></p><dl><dt>Sees</dt><dd>the spans the agent's runtime emitted under the OpenTelemetry GenAI conventions 1.41.0: tool, agent and model operations</dd><dt>Keeps</dt><dd>the span's end time, its trace, span and parent span ids, its status, the operation, the tool, agent or model name, the provider, the server address, the error type and the run attribute; never a prompt, an output or reasoning</dd><dt>Decides</dt><dd>nothing</dd><dt>Enforces</dt><dd>nothing</dd><dt>Bypasses that remain</dt><dd>the agent's own process writes the spans, so what it leaves out is unseen, and the source may not declare <code>TRUST_INDEPENDENT</code></dd></dl></li>
+</ul>
 <h2 id="notes">Notes</h2>
 <ul>
 <li>An observation is testimony. The plane never reads one, and nothing in it
@@ -206,7 +167,10 @@ such a call.</li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -218,11 +182,13 @@ such a call.</li>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -238,6 +204,7 @@ such a call.</li>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels" aria-current="page">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -252,11 +219,15 @@ such a call.</li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -291,7 +262,7 @@ such a call.</li>
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

@@ -21,10 +21,9 @@ each [reaction](reaction.md) document, and no route or lift key exists
 Each body is canonical JSON naming its `alg`, its `keyId`, `plane_id`, the
 tenant, the project and `file`: the absolute, cleaned path of the route file
 or of the stop list, every link on the way to its directory resolved. A
-plane refuses a body that names another `plane_id` or none, so a copy of a
-signed document to another plane of the same tenant and project is refused
-there for its `plane_id` even where the paths are alike, and for its `file`
-where they differ. The route names a `project_id` and a `scope` on each
+plane refuses a body that names another `plane_id` or none, so a copy to
+another plane of the same tenant and project is refused for its `plane_id`,
+whatever the paths, and for its `file` where they differ. The route names a `project_id` and a `scope` on each
 rule, and every stop and covered line of a `3.0` list names the project, the
 `scope` and the `subject`. Under scope `run` the subject is the line's
 `run_id`; under `agent` or `principal`, below, it is the agent or principal
@@ -51,7 +50,7 @@ floor's lock each time that part grows. A plane
 refuses a list below the floor's serial, one at that serial with another head,
 one above it whose `previous` is not the floor's head, and, as a broken chain,
 one at that serial shorter than the part the floor holds or beginning with
-other bytes. It refuses `reaction.route`, `reaction.stops` or the
+other bytes. It refuses `reaction.route`, `reaction.stops`, its list or the
 directory of either when its own account may write them, and a route file,
 stop list or their directory its own account owns; only `dev`, on one
 account, reads them. The stop writers' account owns the list and its
@@ -73,34 +72,35 @@ the list and its lifts on disk through the roster before it signs, and says
 on standard error what it signed. A carry judges every line of the old list
 as a plane does; with `--stops-floor`, the plane's floor directory, it also
 refuses an old list cut back below the part the plane accepted, and without
-it says that the floor was not read. Only the floor's owner reads it: on two
+it says the floor was not read. Only the floor's owner reads it: on two
 accounts root copies it for the operator
 ([upgrade a plane](../guides/upgrade-a-plane-from-0-17.md)). `--carry-route` may name a
 `v1alpha2` route and `--carry` its `2.0` list: a carry is the one reader of
-both, judges them by tenant, project and file, as 0.17 did, and writes a
+both, judges them by tenant, project and file, and writes a
 `3.0` list for the plane the new route names, at the next serial, naming the
 old head as `previous`; each carried stop takes scope `run` and its run as
-subject. The operator vouches that the old list is this plane's. Each
+subject. The old list is then read-only, and writers refuse it; its owner
+can undo that. The operator vouches that the old list is this plane's. Each
 command judges a route against the plane the route names. `react` takes `--approvals`, the plane's
 approvals directory, and will not run as the account that owns it; the
-directory is the caller's to name, so this guards against a mistake and does
-not keep the plane's account out. The console writes no stop and no lift at
-any setting.
+caller names the directory, so this guards against a mistake, not the plane's
+account. The console writes no stop and no lift.
 
 `--serial` matters only while the floor holds no serial: once it holds one, a
 new list is taken only as a carry naming the floor's head. When the old list
 cannot be carried, the plane's account makes a new floor with `stops floor
 init` in a new directory and names it in `reaction.stops_floor_dir`, an
 operator starts a new list with `stops init --key`, and `react` stops again
-what may still stop. A new floor takes any list, so this is the step that
+what may still stop. A new floor takes any list: this step
 lowers it.
 
 ## A stop of an agent or a principal
 
 A route rule may carry scope `agent` or `principal` for `REPEATED_DENIAL`
-version `2`, `DENIED_ACTION_RETRIED_ARGUMENTS` version `1` and
-`DENIED_ACTION_RETRIED_RESOURCE` version `1`, the rules about what the actor
-did, and only with `expires_seconds`. Every reader of a route refuses either
+version `2` alone, the rule about what the actor did that may stop, and only
+with `expires_seconds`; the retry rules at `1` only in `--carry-route`, a
+carry keeping their stops only within what the new route grants
+([ADR-0088](../adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md)). Every reader of a route refuses either
 scope on any other rule, and either scope without a lifetime
 ([ADR-0083](../adr/0083-a-finding-may-stop-an-agent-or-a-principal.md)).
 

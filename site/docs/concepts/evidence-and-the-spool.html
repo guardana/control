@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -162,74 +172,19 @@ to a run), <code>occurred_at</code>,
 <code>prev_event_id</code>, the link to the event before it on the same request. The
 payload is deep-copied into the event, and a nil payload leaves the arm
 unset, so a gap looks like a gap and never like an empty decision.</p>
-<div class="tbl">
-<table>
-<thead>
-<tr>
-<th>Event</th>
-<th>Written when</th>
-<th>Payload</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ACTION_PROPOSED</code></td>
-<td>a call's trail opens</td>
-<td>the envelope as the adapter proposed it</td>
-</tr>
-<tr>
-<td><code>POLICY_DECIDED</code></td>
-<td>right after the proposal</td>
-<td>the kernel's decision: about the proposed envelope, or about the authorized one when a rewriting obligation changed the bytes</td>
-</tr>
-<tr>
-<td><code>APPROVAL_REQUESTED</code></td>
-<td>the call is held for an approval</td>
-<td>the approval the enforcement point minted: <code>approval_id</code>, <code>request_id</code>, the action digest, the bundle digest, <code>PENDING</code>, <code>requested_at</code>, <code>expires_at</code></td>
-</tr>
-<tr>
-<td><code>APPROVAL_DECIDED</code></td>
-<td>an approved retry resumes the held request, or a rejected one closes it</td>
-<td>the approval as answered, with <code>approver_id</code> and its state</td>
-</tr>
-<tr>
-<td><code>APPROVAL_EXPIRED</code></td>
-<td>the approval expired before a retry resumed it, answered or not, or the enforcement point could not keep the hold</td>
-<td>the approval with state <code>EXPIRED</code></td>
-</tr>
-<tr>
-<td><code>ACTION_STARTED</code></td>
-<td>the call passed its checks; a lapse found during its append ends the trail with <code>ACTION_FAILED</code> and nothing is handed out</td>
-<td>no payload; <code>execution_id</code> names this execution, and the closing event carries it again</td>
-</tr>
-<tr>
-<td><code>ACTION_COMPLETED</code></td>
-<td>the bytes sent were the authorized ones and the result succeeded</td>
-<td>the result, with <code>executed_action_digest</code> equal to the decision's action digest; when <code>OBSERVE</code> runs a call nothing classifies, whose input the kernel refused, the decision has none and the result has the digest of the bytes sent</td>
-</tr>
-<tr>
-<td><code>ACTION_FAILED</code></td>
-<td>the result was not a success, the bytes sent were not the authorized ones, or the adapter did not send</td>
-<td>the result; <code>tool_protocol_status: EXECUTED_ARGS_MISMATCH</code> on a mismatch; on an abort a <code>BLOCKED</code> result carrying the cause's code and no executed digest</td>
-</tr>
-<tr>
-<td><code>ACTION_BLOCKED</code></td>
-<td>the call was stopped</td>
-<td>the decision that stopped it: the kernel's, or the enforcement point's own with <code>pdp_type: gateway</code></td>
-</tr>
-<tr>
-<td><code>POLICY_RELOADED</code></td>
-<td>defined for a bundle taken into use; this plane writes none</td>
-<td>the bundle reference; its content never enters the trail</td>
-</tr>
-<tr>
-<td><code>FINDING_RAISED</code></td>
-<td>defined for a detector reporting after the fact; this plane writes none, and <code>supervise</code> keeps its findings in a log of its own</td>
-<td>the finding; it annotates and never grants or denies</td>
-</tr>
-</tbody>
-</table>
-</div>
+<ul class="stack">
+<li><p class="rt"><code>ACTION_PROPOSED</code></p><dl><dt>Written when</dt><dd>a call's trail opens</dd><dt>Payload</dt><dd>the envelope as the adapter proposed it</dd></dl></li>
+<li><p class="rt"><code>POLICY_DECIDED</code></p><dl><dt>Written when</dt><dd>right after the proposal</dd><dt>Payload</dt><dd>the kernel's decision: about the proposed envelope, or about the authorized one when a rewriting obligation changed the bytes</dd></dl></li>
+<li><p class="rt"><code>APPROVAL_REQUESTED</code></p><dl><dt>Written when</dt><dd>the call is held for an approval</dd><dt>Payload</dt><dd>the approval the enforcement point minted: <code>approval_id</code>, <code>request_id</code>, the action digest, the bundle digest, <code>PENDING</code>, <code>requested_at</code>, <code>expires_at</code></dd></dl></li>
+<li><p class="rt"><code>APPROVAL_DECIDED</code></p><dl><dt>Written when</dt><dd>an approved retry resumes the held request, or a rejected one closes it</dd><dt>Payload</dt><dd>the approval as answered, with <code>approver_id</code> and its state</dd></dl></li>
+<li><p class="rt"><code>APPROVAL_EXPIRED</code></p><dl><dt>Written when</dt><dd>the approval expired before a retry resumed it, answered or not, or the enforcement point could not keep the hold</dd><dt>Payload</dt><dd>the approval with state <code>EXPIRED</code></dd></dl></li>
+<li><p class="rt"><code>ACTION_STARTED</code></p><dl><dt>Written when</dt><dd>the call passed its checks; a lapse found during its append ends the trail with <code>ACTION_FAILED</code> and nothing is handed out</dd><dt>Payload</dt><dd>no payload; <code>execution_id</code> names this execution, and the closing event carries it again</dd></dl></li>
+<li><p class="rt"><code>ACTION_COMPLETED</code></p><dl><dt>Written when</dt><dd>the bytes sent were the authorized ones and the result succeeded</dd><dt>Payload</dt><dd>the result, with <code>executed_action_digest</code> equal to the decision's action digest; when <code>OBSERVE</code> runs a call nothing classifies, whose input the kernel refused, the decision has none and the result has the digest of the bytes sent</dd></dl></li>
+<li><p class="rt"><code>ACTION_FAILED</code></p><dl><dt>Written when</dt><dd>the result was not a success, the bytes sent were not the authorized ones, or the adapter did not send</dd><dt>Payload</dt><dd>the result; <code>tool_protocol_status: EXECUTED_ARGS_MISMATCH</code> on a mismatch; on an abort a <code>BLOCKED</code> result carrying the cause's code and no executed digest</dd></dl></li>
+<li><p class="rt"><code>ACTION_BLOCKED</code></p><dl><dt>Written when</dt><dd>the call was stopped</dd><dt>Payload</dt><dd>the decision that stopped it: the kernel's, or the enforcement point's own with <code>pdp_type: gateway</code></dd></dl></li>
+<li><p class="rt"><code>POLICY_RELOADED</code></p><dl><dt>Written when</dt><dd>defined for a bundle taken into use; this plane writes none</dd><dt>Payload</dt><dd>the bundle reference; its content never enters the trail</dd></dl></li>
+<li><p class="rt"><code>FINDING_RAISED</code></p><dl><dt>Written when</dt><dd>defined for a detector reporting after the fact; this plane writes none, and <code>supervise</code> keeps its findings in a log of its own</dd><dt>Payload</dt><dd>the finding; it annotates and never grants or denies</dd></dl></li>
+</ul>
 <h2 id="before-an-effect-and-after">Before an effect and after</h2>
 <p>A sink's <code>Append</code> returns only when the event is durable under its own
 policy, and an error means it is not. What the enforcement point does with
@@ -288,74 +243,19 @@ the exporter work in records from there.</p>
 <p>Sources: <code>internal/spool/append.go</code>, <code>internal/spool/segment.go</code>,
 <code>internal/spool/reader.go</code>, <code>internal/spool/quarantine.go</code>,
 <code>adapters/otel/exporter.go</code>, <code>adapters/otel/send.go</code>.</p>
-<div class="tbl">
-<table>
-<thead>
-<tr>
-<th>Step</th>
-<th>What happens</th>
-<th>Refused when</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Append</td>
-<td>the event is encoded as one JSON line, framed and checksummed, written under one lock, and synced before <code>Append</code> returns under <code>FsyncEveryRecord</code>, the zero value; under <code>FsyncInterval</code> it is synced on a timer, and a power loss can take what was written since the last tick</td>
-<td><code>ErrFull</code> when the bytes on disk plus the reservations would pass <code>MaxBytes</code>; <code>ErrTrail</code> for an <code>ACTION_STARTED</code> that names no <code>request_id</code> or a trail that already holds a reservation; <code>ErrFull</code> for an <code>ACTION_STARTED</code> past <code>MaxOpenTrails</code>; <code>ErrFull</code> once the sequence has numbered its last record</td>
-</tr>
-<tr>
-<td>Reserve</td>
-<td>an <code>ACTION_STARTED</code> reserves <code>ClosingReserve</code> bytes for its request and execution, so the closing record of an open trail has that much room whatever else fills the spool; the <code>ACTION_COMPLETED</code> or <code>ACTION_FAILED</code> naming both spends it, and only the bytes past it are checked against the budget, so a closing record larger than the reservation can still be refused</td>
-<td>a closing record naming another trail is an ordinary append, budget and all</td>
-</tr>
-<tr>
-<td>Roll</td>
-<td>a record that would take the segment past <code>SegmentBytes</code> closes it, synced, and opens the next, named by the sequence number of its first record; a record larger than a segment gets one of its own</td>
-<td>a segment file that already exists is <code>ErrCorrupt</code></td>
-</tr>
-<tr>
-<td>Deliver</td>
-<td>the exporter rewinds to the acknowledged position, takes a batch of up to <code>MaxBatch</code> records within <code>Linger</code>, keeps at most <code>InFlight</code> requests unacknowledged, and sends each event as one OTLP log record over HTTP; to a <code>unix:///path</code> endpoint it writes on a connection only once the socket's peer is <code>export.collector_uid</code>, read from the kernel each time</td>
-<td>a second <code>Run</code> on one exporter, which would let each run acknowledge what the other took</td>
-</tr>
-<tr>
-<td>Acknowledge</td>
-<td>batches are acknowledged in the order they were sent, once every record in one was accepted or quarantined; the first batch not delivered stops the cursor, and the next run sends it all again; <code>Ack</code> is bounded by what this reader delivered, so nothing is released that nobody exported</td>
-<td>a cursor before the acknowledged position, past what was delivered, or inside a record</td>
-</tr>
-<tr>
-<td>Retry</td>
-<td>any answer that is not an acceptance or a refusal of the records, a transport error, a redirect, an auth or throttling status, a server error, an acceptance that does not parse or runs past 64 KiB, a unix socket's peer of another account or of none the kernel names, is sent again with a backoff that doubles up to <code>MaxBackoff</code>, for as long as it takes</td>
-<td>never: a collector outage fills the spool and nothing else</td>
-</tr>
-<tr>
-<td>Quarantine</td>
-<td>a refusal of the records (<code>400</code>, <code>413</code>, <code>422</code>) splits a batch in halves; a single record refused <code>maxRefusals</code> times running, every record of an accepted request from which the collector reports dropping some, since its answer does not say which, and a record the encoder refuses go to the quarantine, so the cursor may pass them without dropping them; a record the quarantine already holds is not written twice</td>
-<td><code>ErrFull</code> when what the quarantine took since the last acknowledgement would exceed what that acknowledgement releases: the quarantine's bytes count against the budget from then on, and only an operator's drain releases them</td>
-</tr>
-<tr>
-<td>Open</td>
-<td>the directory is locked for this process, every segment and the quarantine are read and checked, a torn tail of the last segment or of the quarantine is cut and counted as truncated</td>
-<td><code>ErrLocked</code> for a directory another spool holds; <code>ErrCorrupt</code> for a record that does not check anywhere but those tails, or a segment out of sequence, with nothing deleted; <code>ErrForeignFile</code> for a file that is not the spool's, a segment or quarantine with a second name, another account's, or one the group or others may write among them</td>
-</tr>
-<tr>
-<td>Inspect</td>
-<td><code>doctor</code>'s read: every segment and the quarantine are read and checked as Open reads them, under a shared lock that keeps a spool from opening the directory meanwhile, and what Open would cut is counted and left on disk; nothing is created, cut or removed</td>
-<td>what Open refuses, with nothing changed; a directory a spool holds is reported held and not read</td>
-</tr>
-<tr>
-<td>Drain</td>
-<td><code>guardana-gateway spool drain</code>: under the directory's lock, the quarantine's whole records go to a new owner-only file as JSON Lines, synced with its directory before the quarantine is truncated, so a drain stopped between the two leaves every record in both</td>
-<td><code>ErrLocked</code> while a plane holds the spool; <code>ErrDrainTarget</code> for a file in the spool's directory; what Open refuses of the quarantine</td>
-</tr>
-<tr>
-<td>Break</td>
-<td>an I/O failure a repair cannot undo latches: the segment is cut back to its committed length and the cut synced when that works, and when it does not, every later operation fails with the same error</td>
-<td>a broken spool refuses everything, so a later append never lands behind a tail nobody can vouch for</td>
-</tr>
-</tbody>
-</table>
-</div>
+<ul class="stack">
+<li><p class="rt">Append</p><dl><dt>What happens</dt><dd>the event is encoded as one JSON line, framed and checksummed, written under one lock, and synced before <code>Append</code> returns under <code>FsyncEveryRecord</code>, the zero value; under <code>FsyncInterval</code> it is synced on a timer, and a power loss can take what was written since the last tick</dd><dt>Refused when</dt><dd><code>ErrFull</code> when the bytes on disk plus the reservations would pass <code>MaxBytes</code>; <code>ErrTrail</code> for an <code>ACTION_STARTED</code> that names no <code>request_id</code> or a trail that already holds a reservation; <code>ErrFull</code> for an <code>ACTION_STARTED</code> past <code>MaxOpenTrails</code>; <code>ErrFull</code> once the sequence has numbered its last record</dd></dl></li>
+<li><p class="rt">Reserve</p><dl><dt>What happens</dt><dd>an <code>ACTION_STARTED</code> reserves <code>ClosingReserve</code> bytes for its request and execution, so the closing record of an open trail has that much room whatever else fills the spool; the <code>ACTION_COMPLETED</code> or <code>ACTION_FAILED</code> naming both spends it, and only the bytes past it are checked against the budget, so a closing record larger than the reservation can still be refused</dd><dt>Refused when</dt><dd>a closing record naming another trail is an ordinary append, budget and all</dd></dl></li>
+<li><p class="rt">Roll</p><dl><dt>What happens</dt><dd>a record that would take the segment past <code>SegmentBytes</code> closes it, synced, and opens the next, named by the sequence number of its first record; a record larger than a segment gets one of its own</dd><dt>Refused when</dt><dd>a segment file that already exists is <code>ErrCorrupt</code></dd></dl></li>
+<li><p class="rt">Deliver</p><dl><dt>What happens</dt><dd>the exporter rewinds to the acknowledged position, takes a batch of up to <code>MaxBatch</code> records within <code>Linger</code>, keeps at most <code>InFlight</code> requests unacknowledged, and sends each event as one OTLP log record over HTTP; to a <code>unix:///<wbr/>path</code> endpoint it writes on a connection only once the socket's peer is <code>export.collector_uid</code>, read from the kernel each time</dd><dt>Refused when</dt><dd>a second <code>Run</code> on one exporter, which would let each run acknowledge what the other took</dd></dl></li>
+<li><p class="rt">Acknowledge</p><dl><dt>What happens</dt><dd>batches are acknowledged in the order they were sent, once every record in one was accepted or quarantined; the first batch not delivered stops the cursor, and the next run sends it all again; <code>Ack</code> is bounded by what this reader delivered, so nothing is released that nobody exported</dd><dt>Refused when</dt><dd>a cursor before the acknowledged position, past what was delivered, or inside a record</dd></dl></li>
+<li><p class="rt">Retry</p><dl><dt>What happens</dt><dd>any answer that is not an acceptance or a refusal of the records, a transport error, a redirect, an auth or throttling status, a server error, an acceptance that does not parse or runs past 64 KiB, a unix socket's peer of another account or of none the kernel names, is sent again with a backoff that doubles up to <code>MaxBackoff</code>, for as long as it takes</dd><dt>Refused when</dt><dd>never: a collector outage fills the spool and nothing else</dd></dl></li>
+<li><p class="rt">Quarantine</p><dl><dt>What happens</dt><dd>a refusal of the records (<code>400</code>, <code>413</code>, <code>422</code>) splits a batch in halves; a single record refused <code>maxRefusals</code> times running, every record of an accepted request from which the collector reports dropping some, since its answer does not say which, and a record the encoder refuses go to the quarantine, so the cursor may pass them without dropping them; a record the quarantine already holds is not written twice</dd><dt>Refused when</dt><dd><code>ErrFull</code> when what the quarantine took since the last acknowledgement would exceed what that acknowledgement releases: the quarantine's bytes count against the budget from then on, and only an operator's drain releases them</dd></dl></li>
+<li><p class="rt">Open</p><dl><dt>What happens</dt><dd>the directory is locked for this process, every segment and the quarantine are read and checked, a torn tail of the last segment or of the quarantine is cut and counted as truncated</dd><dt>Refused when</dt><dd><code>ErrLocked</code> for a directory another spool holds; <code>ErrCorrupt</code> for a record that does not check anywhere but those tails, or a segment out of sequence, with nothing deleted; <code>ErrForeignFile</code> for a file that is not the spool's, a segment or quarantine with a second name, another account's, or one the group or others may write among them</dd></dl></li>
+<li><p class="rt">Inspect</p><dl><dt>What happens</dt><dd><code>doctor</code>'s read: every segment and the quarantine are read and checked as Open reads them, under a shared lock that keeps a spool from opening the directory meanwhile, and what Open would cut is counted and left on disk; nothing is created, cut or removed</dd><dt>Refused when</dt><dd>what Open refuses, with nothing changed; a directory a spool holds is reported held and not read</dd></dl></li>
+<li><p class="rt">Drain</p><dl><dt>What happens</dt><dd><code>guardana-gateway spool drain</code>: under the directory's lock, the quarantine's whole records go to a new owner-only file as JSON Lines, created and synced through the directory it judged, so a link in the path changed after the check cannot move it, before the quarantine is truncated, so a drain stopped between the two leaves every record in both</dd><dt>Refused when</dt><dd><code>ErrLocked</code> while a plane holds the spool; <code>ErrDrainTarget</code> for a file in the spool's directory; what Open refuses of the quarantine</dd></dl></li>
+<li><p class="rt">Break</p><dl><dt>What happens</dt><dd>an I/O failure a repair cannot undo latches: the segment is cut back to its committed length and the cut synced when that works, and when it does not, every later operation fails with the same error</dd><dt>Refused when</dt><dd>a broken spool refuses everything, so a later append never lands behind a tail nobody can vouch for</dd></dl></li>
+</ul>
 <p>Every open of a segment or of the quarantine, to append, to read or to cut a
 torn tail, refuses a symbolic link at its name and does not wait on a named
 pipe there. It refuses with <code>ErrForeignFile</code> a file that is not regular, has a
@@ -409,7 +309,10 @@ them (<code>exporter.go</code>, <code>send.go</code>, <code>answer.go</code>).</
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -421,11 +324,13 @@ them (<code>exporter.go</code>, <code>send.go</code>, <code>answer.go</code>).</
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -441,6 +346,7 @@ them (<code>exporter.go</code>, <code>send.go</code>, <code>answer.go</code>).</
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -455,11 +361,15 @@ them (<code>exporter.go</code>, <code>send.go</code>, <code>answer.go</code>).</
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -494,7 +404,7 @@ them (<code>exporter.go</code>, <code>send.go</code>, <code>answer.go</code>).</
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

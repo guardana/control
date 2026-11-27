@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -123,8 +133,8 @@
 <h1 id="threat-model">Threat model</h1>
 <p>Nothing in this repository is a security boundary yet
 (<a href="/docs/status">status</a>, <a href="https://github.com/guardana/control/blob/main/SECURITY.md">SECURITY.md</a>). This page says
-what the plane is built to protect, from whom, what it does about each of them
-today, and where it stops. Each defence names the code that makes it and,
+what the plane protects, from whom, what it does about each today, and where
+it stops. Each defence names the code that makes it and,
 where one exists, the test that exercises it.</p>
 <h2 id="what-is-in-scope">What is in scope</h2>
 <ul>
@@ -189,7 +199,7 @@ outside the plane. They appear below as parties the plane has to deal with.</p>
 </table>
 </div>
 <h2 id="who-it-is-meant-to-stop">Who it is meant to stop</h2>
-<p>The main attacker is <strong>the agent itself</strong>, when it is wrong or when content it
+<p>The main attacker is <strong>the agent itself</strong>, when it is wrong or content it
 read steers it. Each of the others has a section below.</p>
 <h2 id="trust-boundaries">Trust boundaries</h2>
 <figure class="dg-text" id="diagram-1"><figcaption>Trust boundaries</figcaption><p>The agent reaches the plane over MCP with no credential and may have paths around it; one account on the plane&#39;s machine holds the plane, its stdio upstreams, its files and the approvals page, another account is refused on the files by their mode, on the pause file, the approvals directory, the hold journal, the trail and the key by their owner too, and on the spool&#39;s directory, whose owner and mode are checked; the plane sends HTTP upstreams the authorized bytes, a decision point no arguments, and a collector its evidence. <a href="https://github.com/guardana/control/blob/main/docs/concepts/threat-model.md">Drawn on GitHub</a>.</p><details><summary>The diagram's source</summary><pre><code class="language-mermaid">flowchart TD
@@ -224,12 +234,10 @@ read steers it. Each of the others has a section below.</p>
 <code>internal/approvals/dirid.go</code>, <code>internal/pause/snapshot.go</code>,
 <code>internal/console/console.go</code>, <code>cmd/guardana-gateway/collect.go</code>,
 <code>adapters/authzen/mapping.go</code>.</p>
-<p>A dotted line is either a path that goes around
-the plane or a write that the file checks refuse. The account is the strongest boundary this
-build has: the approvals directory, the pause file, the hold journal, the
-trail file and the key are each refused when the group or the world may write
-them, and the hold journal, the trail file and the key also when another
-account owns them.</p>
+<p>A dotted line is a path around the plane or a
+write the file checks refuse. The account is this build's strongest
+boundary; <a href="#another-local-account">another local account</a> names each file
+check.</p>
 <h2 id="an-agent-that-is-wrong-or-steered">An agent that is wrong or steered</h2>
 <p>What the plane does today:</p>
 <ul>
@@ -279,7 +287,7 @@ default, so a plane runs in <code>OBSERVE</code> only when configured so
 constraint reads the arguments, which enter as a hash, except the one value
 an override's <code>resource_from</code> points at. A harmful call that a rule allows
 runs.</li>
-<li>It does not see a call that does not pass through it. An agent, or a tool
+<li>It does not see a call that bypasses it. An agent, or a tool
 behind the plane, that can reach an upstream directly, or run code, goes
 around it. Which network paths and credentials an agent holds is the
 operator's to arrange.</li>
@@ -287,7 +295,8 @@ operator's to arrange.</li>
 end user's authenticator, so every call on a listener is the one configured principal
 (<a href="/docs/reference/mcp-coverage">MCP coverage</a>), and a pause names no tenant.</li>
 <li>The flow state is a lower bound: a run starts clean, and the user's prompt,
-the tools' descriptions and tools outside the plane are not tracked
+tool descriptions, listed resources and prompts, and tools outside the
+plane are not tracked
 (<a href="/docs/adr/0021-a-run-carries-what-it-took-in">ADR-0021</a>).</li>
 <li>A pause takes effect up to one poll interval after it is written, and never
 stops a call already running (<a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a>).</li>
@@ -303,9 +312,11 @@ rolls the floor back with it
 <h2 id="a-hostile-or-compromised-mcp-server">A hostile or compromised MCP server</h2>
 <p>What the plane does today:</p>
 <ul>
-<li>A server that changes a tool's definition changes its fingerprint, and the
-tool is unclassified again until the operator looks
-(<code>adapters/mcp/manifest.go</code>; <code>TestFingerprintCoversTheWholeDefinition</code>).</li>
+<li>A changed tool definition changes its fingerprint; once the list refreshes,
+the tool is unclassified until the operator looks, and a call admitted
+earlier runs only under <code>OBSERVE</code> (<code>adapters/mcp/manifest.go</code>;
+<code>TestFingerprintCoversTheWholeDefinition</code>,
+<code>TestACallAdmittedBeforeARefreshRunsUnderObserveOnly</code>).</li>
 <li>A server cannot answer as the plane: the plane's marker is stripped from
 what a server sends, so its answer never reads as the plane's pending or
 block (<code>adapters/mcp/answer.go</code>; <code>TestUpstreamCannotAnswerAsTheGateway</code>,
@@ -336,8 +347,9 @@ sends, which is withheld (below). The plane records a hash of a result it can
 encode.</li>
 <li>A tool the agent is shown comes with its description as the server wrote
 it. List shaping can hide denied and unclassified tools, never rewrite a
-description, and the fingerprint catches a definition that changes, not one
-that was hostile from the start.</li>
+description, and the fingerprint catches a changed definition only after
+a <code>list_changed</code>, which a server may never send, never one hostile from the
+start.</li>
 <li>It cannot see what a server did with the bytes it was sent.</li>
 <li><strong>A <code>stdio</code> upstream is a child process of the plane</strong>: it runs as the
 plane's account and can read and write everything that account can
@@ -453,6 +465,9 @@ it (<a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-project-
 <a href="/docs/adr/0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls">ADR-0080</a>).</li>
 <li>The spool writes its files <code>0600</code> and refuses a directory another account
 owns or that others can write.</li>
+<li>Any account that can read a statement, bundle, route or roster can lock
+it, refusing every write until it lets go: renews fail, the statement ages,
+and the plane turns stale, refusing calls but granting nothing.</li>
 <li>A peer <code>health.socket</code> or a unix collector admits can pass its connection
 on (<code>SCM_RIGHTS</code>): trust stops at its account.</li>
 <li>The checks read the owner and mode bits, not access control lists. On
@@ -559,7 +574,10 @@ credential can post events to <code>collect</code>. What a record holds is on th
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -571,11 +589,13 @@ credential can post events to <code>collect</code>. What a record holds is on th
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -591,6 +611,7 @@ credential can post events to <code>collect</code>. What a record holds is on th
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -605,11 +626,15 @@ credential can post events to <code>collect</code>. What a record holds is on th
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -644,7 +669,7 @@ credential can post events to <code>collect</code>. What a record holds is on th
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

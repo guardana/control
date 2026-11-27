@@ -126,9 +126,15 @@ func TestHelperActsAsAnotherAccount(t *testing.T) {
 	case "ask":
 		os.Exit(askSocket(arg))
 	case "signed-start":
-		os.Exit(judgeSignedStart(arg))
+		os.Exit(answerSignedStart(arg))
 	case "collector":
 		os.Exit(serveCollector(arg))
+	case "add-pause":
+		os.Exit(addPauseAsOperator(arg))
+	case "read-pause":
+		os.Exit(readPauseAsPlane(arg))
+	case "file-answer":
+		os.Exit(fileAnswerAsOperator(arg))
 	}
 	fmt.Fprintf(os.Stderr, "no role %q\n", role)
 	os.Exit(2)
@@ -157,9 +163,9 @@ func askSocket(path string) int {
 	return 0
 }
 
-// judgeSignedStart loads the configuration at path as this account and
+// answerSignedStart loads the configuration at path as this account and
 // prints what checkSignedStart answers: "ok", or its refusal.
-func judgeSignedStart(path string) int {
+func answerSignedStart(path string) int {
 	cfg, err := gatewayconfig.Load(path, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "load: %v\n", err)

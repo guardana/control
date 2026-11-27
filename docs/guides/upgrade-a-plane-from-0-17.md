@@ -16,6 +16,14 @@ refuses the pause file, the route and the stop list 0.17 signed, each naming
 the command that replaces it, and raises no floor while it does
 ([ADR-0082](../adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md)).
 
+A 0.17 plane need not run 0.18 on its way to 0.19: take these steps with the
+0.19 binaries, leaving `DEADLINE_EXCEEDED`,
+`DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE` out of
+the route step 2 signs, then [upgrade a plane from 0.18](upgrade-a-plane-from-0-18.md)
+before the plane starts: 0.19 will not start on a route naming those rules or
+a configuration block written twice. A signed plane has then taken its route
+step.
+
 ## Every plane
 
 Under `directory` and `memory` the plane reads the files 0.17 wrote: replace
@@ -99,9 +107,12 @@ route moved to the old path is refused. Keep `/srv/plane/route.json` and
 `/srv/plane/stops` for a roll back.
 
 Run `react` with the 0.18 binary as `ops`, with `--route
-/srv/plane/route-018.json` and `--stops /srv/plane/stops-018`. A 0.17 `react`
-left on the old route and directory keeps appending to a list the plane no
-longer reads.
+/srv/plane/route-018.json` and `--stops /srv/plane/stops-018`. Step 4 takes
+the write bits off the old list once every check passed and before it writes
+the new one, so a 0.17 `react` left on the old route and directory fails to
+write instead of appending to a list the plane no longer reads. Only the old
+list's owner may take them, so run step 4 as that account: under any other,
+it refuses before it writes anything.
 
 `stops init --carry` is the one command that reads a `reaction-route/v1alpha2`
 route and a `2.0` list. It judges every line through the roster, as a 0.17
@@ -113,7 +124,10 @@ the floor. The old documents name no plane, so the operator also vouches that
 the list is this plane's. The new `3.0` header takes the next serial and names
 the old head as `previous`, which the stop list floor needs to take it. Each
 stop no lift ended is carried with scope `run` and its run as subject; a
-lifted run's findings are carried as covered.
+lifted run's findings are carried as covered. A stop the new route does not
+grant refuses the carry, naming it; `stops lift` takes no `v1alpha2` route,
+so change the route document as the refusal says, sign it again and rerun
+step 4.
 
 ### Verify
 
@@ -148,6 +162,10 @@ you start 0.17:
   old list below it. Make a new floor with `stops floor init` in a new
   directory, name it in `reaction.stops_floor_dir`, and start a new list with
   `stops init --key`.
+
+Step 4 left the kept list `/srv/plane/stops/stops.jsonl` without its write
+bits. Before 0.17's `react` writes to it, give them back as its owner with
+`chmod u+w`, or that `react` fails on every stop.
 
 Then start 0.17, and run `react` with the 0.17 binary against the route and
 the new list; it stops again each run that a finding and the route still

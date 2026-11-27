@@ -45,6 +45,8 @@ Before it creates or binds anything, dev refuses, with status 1:
   loopback, a host name included: its own listeners, every
   `upstreams[].endpoint`, and `pdp.identifier`, `pdp.evaluation_endpoint`
   and `pdp.proxy`;
+- a `health.socket`: dev answers its health on the loopback address it
+  binds, and on no socket outside its state directory;
 - a `guardana-control` beside it that is missing or of another version;
 - a system temporary directory under which its collector's socket path would
   pass 103 bytes, naming `TMPDIR`.
@@ -86,7 +88,8 @@ memory for the session and never written. Dev writes the first statement
 before the plane starts and a new one every third of the budget, the smaller
 of the document's `maxStaleSeconds` and `policy.max_stale`, or every budget
 less twice `policy.poll_interval` when that is sooner; a poll interval of half
-the budget or more is refused. The plane pins
+the budget or more is refused. Each replaces the last by a swap, which a file
+system without one refuses. The plane pins
 both public halves, and reads the bundle and the statement again every
 `policy.poll_interval`, which the configuration sets.
 
@@ -149,5 +152,6 @@ each on a plane of its own: a new state directory (a numbered one under
 `--state` when given), a new plane, no page, stopped once the scenario ends.
 Each line is the runner's ([scenario-format.md](scenario-format.md)), after
 one line naming the scenario's state directory. It exits 1 when any
-scenario differed, else 2 when any could not run, or its plane stopped on its
-own or did not stop cleanly, else 0.
+scenario differed, else 2 when any could not run, its plane stopped on its own
+or did not stop cleanly, or standard output did not take the report whole,
+else 0.

@@ -11,8 +11,144 @@ verify one.
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-11-27
+
+Upgrading from 0.18 changes requirements across several tools, and more under
+`approvals.authority: signed`. `collect` and `prune` refuse symlinked trail
+directories and require parents owned by this account or root (sticky if
+writable by group or others). `collect` reads `--listen` as a URL; escape
+socket paths holding `#`, `?` or `%`. Signers, `policy renew`,
+`supervise --view`, signed pause writers and the dev statement swap names
+atomically to replace existing outputs, refusing where unsupported (outside
+Linux and macOS or on some network file systems). Remove `DEADLINE_EXCEEDED`,
+`DENIED_ACTION_RETRIED_ARGUMENTS` and `DENIED_ACTION_RETRIED_RESOURCE` from
+routes (now version `2`, `SUSPECTED` at most, and never stopping runs, agents
+or principals) and `route sign` again; carry stops with `stops init --carry
+<old list> --carry-route <old route>` under the new route and review kept
+stops with `stops list`. In `procedure test`, add the record's project to
+`run` and each run in `tree`. In `notify`, name each needed variable with
+`--env`. Under `signed`, a plane refuses to start and `doctor` fails above
+65,536 records in `records/` (`guardana-control runs prune` archives expired
+trees), and `react` refuses an unsigned `--runs` directory. Run a signed carry
+as the old list's owner; it takes the write bits off the old list before
+writing the new one
+([upgrade a plane from 0.18](docs/guides/upgrade-a-plane-from-0-18.md)).
+
+New: `guardana-gateway attempts run` counts the effects and legitimate steps
+of scripted attempts at the demo's victim journals
+([ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
+`guardana-control policy compare` simulates decisions under the current and a
+candidate policy through the kernel's own evaluation, counting unknown cases
+apart
+([ADR-0087](docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md)).
+Risk references map the published agentic and LLM risk lists to the controls
+that address them. This release fixes what a whole-tree audit found across the
+plane, the evidence trail, supervision, the signed files and the gates. The
+hook profile, qualified on two releases of its runtime, was not qualified
+again for this release. 0.19.0 was tagged with most of these changes and
+never published: its release job stopped at the demo archive check.
+
+### Changed
+
+- **Breaking:** `collect` and `prune` refuse a trail directory whose parent
+  is owned by an account other than this one or root, or may be written by
+  the group or others without being sticky, and a trail directory that is a
+  symbolic link. They open the trail directory through the parent they
+  judged, so `--dir P/l/../trail` is `P/trail` and not where the link `l`
+  leads. Only the trail directory itself was checked
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- **Breaking:** `collect` reads `--listen` as a URL: escapes in its path are
+  undone, so the endpoint it prints names the same socket when given back,
+  and a host, a query, a fragment or a `%` that escapes nothing is refused.
+  A socket path holding `#`, `?` or `%` is given escaped, as `collect`
+  prints it.
+- **Breaking:** `policy sign`, `route sign`, `operators roster sign`,
+  `policy renew`, `supervise --view`, the signed pause writers and the dev
+  plane's statement replace an existing output by swapping two names in one
+  step, and refuse to replace it where the platform or file system cannot,
+  as outside Linux and macOS or on some network file systems. A first
+  output, where nothing stands yet, is written as before.
+- **Breaking:** `DEADLINE_EXCEEDED`, `DENIED_ACTION_RETRIED_ARGUMENTS` and
+  `DENIED_ACTION_RETRIED_RESOURCE` are rule version `2` and `SUSPECTED` at
+  most, and none of them may stop a run, an agent or a principal. Each
+  compares two events' times, and nothing in an event or an export names
+  the plane whose clock stamped it: two planes may send to one collector,
+  so a call on a fast clock could look later than a denial it preceded, or a
+  run longer than it was. `route sign`, `react` and a plane loading its route
+  refuse a route naming any of them, at either version, by name. The same
+  evidence now gives a finding with a new id, so a notifier delivers it as a
+  new record. To upgrade, remove those rules from the route, `route sign` it
+  again, and `stops init --carry <old list> --carry-route <old route>` under
+  the new route. A stop those rules wrote is kept, never lifted by the
+  upgrade, only where a rule of the new route still stops its procedure at
+  its scope, for no longer than that rule allows; no new one is written. A
+  carry that cannot keep a stop is refused, naming the stop and the
+  `stops lift` that ends it: run it on the old list with the old route,
+  which `stops lift` takes for that alone, then carry again. `stops lift`
+  takes no `reaction-route/v1alpha2` route, so a carry from a 0.17 list
+  names two other ways instead: give the new route the rule it names, at
+  the stop's scope and lasting at least the stop's span, sign it and carry
+  again, or, where the route already names that rule at another scope, give
+  that rule the stop's scope, since a route names a rule once; or start a new
+  list with `stops init` under a new stop list floor (`stops floor init`),
+  which keeps none of the old stops. A carry keeps each stop's tenant and
+  project, so a carry into a route of another names only a route of the
+  list's or a new list. `stops list`
+  shows each kept stop's rule; review those and lift any you do not keep. The
+  example's `0.2` route now stops on `RESOURCE_OUTSIDE_RUN`
+  ([ADR-0088](docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md),
+  [reaction](docs/reference/reaction.md)).
+- **Breaking:** a `procedure test` cases document states `project` in `run`
+  and in each run of `tree`; a document without it is refused with exit 2,
+  naming the member. Add the project the run's record names. The format
+  stays `0.1`, `experimental`
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
+- **Breaking:** `notify` runs the program with only `PATH`, `HOME`, `LANG`,
+  `LC_ALL`, `TMPDIR` and `USER` of its own environment, and with each
+  variable a new, repeatable `--env <name>` names; a name not set is refused
+  with exit 2 before any program runs, and no value is printed. The program
+  got the whole environment, a credential included. A program that reads a
+  token, a proxy or a certificate path from its environment no longer gets
+  it, and may still exit 0: name each variable it needs with `--env`
+  ([supervision](docs/reference/supervision.md#notify)).
+
+### Added
+
+- `guardana-gateway attempts run` (`experimental`) runs a manifest of scripted
+  attempts against the demo's victims, each on a fresh dev plane, and counts
+  each named effect and each legitimate step at the victims' journals, with a
+  positive control on an OBSERVE plane and a negative control, in a report
+  written line by line
+  ([attempt format](docs/reference/attempt-format.md),
+  [ADR-0086](docs/adr/0086-controlled-attempts-are-counted-at-the-victim.md)).
+  The demo's manifest is `examples/vulnerable-mcp-agent/attempts/manifest.json`.
+- `guardana-control policy compare` (`experimental`) decides policy test
+  cases and an evidence export's requests under the current and a candidate
+  policy through the kernel's own evaluation, and writes a
+  `policy-comparison/v1alpha1` report of each case's change, every result
+  marked simulated. A case it cannot judge, for a missing fact, a decision on
+  another policy, a gap or a disagreement with the recorded decision, is
+  unknown with its reason and counted apart; a `policy-case-labels/v1alpha1`
+  file counts cases by label and change. It sends no call, consumes no
+  approval and activates no policy
+  ([policy compare](docs/reference/policy-compare.md),
+  [ADR-0087](docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md)).
+
 ### Fixed
 
+- `policy test`, `policy explain` and `policy compare` refuse a case whose
+  `authorized_args` is not valid UTF-8 or holds an unpaired surrogate escape
+  such as `\ud800`, naming the member. The case reader put U+FFFD in place
+  of such bytes, so the kernel decided other arguments than the case wrote,
+  and a case could pass `ALLOW` for bytes the kernel refuses
+  ([policy format](docs/reference/policy-format.md#a-test-case)).
+- A `procedure test` case states the project its run's record names, as
+  `project` in `run` and in each run of `tree`, and is judged as `supervise`
+  judges that run: events or a run of another project fail the case as
+  `refused:`, and its sources are of the run's project. The case took the
+  project from its events, so a case passed with a finding that `supervise`
+  would refuse to make for a run recorded under another project
+  ([test a procedure](docs/guides/test-a-procedure.md#2-write-a-case)).
 - `supervise` lists a step's requests, and a finding cites and keeps its
   references, in the order of the plane's times of the proposals, a tie by
   request id. It used the order in which an export first held each request,
@@ -20,6 +156,71 @@ verify one.
   exports of one run could list requests differently and a finding citing
   more than ten could keep other references
   ([supervision](docs/reference/supervision.md)).
+- A signed start refuses a header a variable sets with its hyphens spelled
+  as they are, such as `GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT`, as it
+  refuses every other key the environment sets. Only a header spelled with
+  `_` was refused; the hyphenated one was applied and the start went on.
+- A retry checks the pause, the stops, the clock and the policy again after
+  the approval authority answers and before it spends the approval. A stop
+  published, or a policy gone stale, while the answer was read spent the
+  approval although the call was then blocked; the hold now stands for a
+  later retry.
+- A retry whose approved answer fails the checks made again at its last
+  reading before the spend, such as one past the expiry, reads the ledger
+  before it closes the held trail. If the ledger marks the approval spent,
+  the retry is refused `APPROVAL_ALREADY_USED`. If the ledger cannot be read,
+  the retry is blocked `EVIDENCE_UNAVAILABLE` and the hold stays open. The
+  held trail used to be closed without a ledger read.
+- When a retry finds that another call took the hold it was closing, either
+  a retry that spent the approval or the expiry sweep, it is now blocked on a
+  trail of its own, under its own request id, and the block is counted. The
+  code is `APPROVAL_ALREADY_USED` if the ledger then marks the approval
+  spent, and `EVIDENCE_UNAVAILABLE` otherwise. Such a retry used to get
+  `EVIDENCE_UNAVAILABLE` under the held request's id, with no trail of its
+  own and no block counted.
+- A refusal of an upstream's `env` or `args` item the configuration reader
+  cannot read, such as `API_KEY=value&x` or `--token=value&x`, no longer
+  repeats the item, which can hold a pasted credential.
+- The configuration refuses a block written twice, such as two `policy:`
+  mappings, naming both lines. Two blocks whose keys differed were merged.
+- The configuration refuses a key holding a `.`, such as
+  `policy.fail_open_read: true`; a path is written as nested blocks. The
+  dotted spelling reopened a block already written.
+- `doctor` reads the spent ledger beside the hold journal as `run` opens and
+  sweeps it, and fails naming it where `run` would refuse it: a damaged
+  `ledger.meta`, a name the ledger did not write or a mark that will not
+  decode. It printed `ok` for the approvals and `run` then refused to start.
+  A mark a running plane removes while `doctor` reads the ledger is passed.
+- `/healthz` reports the `directory` approval authority `unavailable` once
+  its approvals directory is not the one the plane opened; it said `usable`
+  whatever became of it.
+- After a restart, a signed plane closes an unexpired lost hold that nobody
+  answered `APPROVAL_EXPIRED` while the hold's record stands, as the
+  directory kind does and [failure modes](docs/reference/failure-modes.md)
+  says. It closed it `APPROVAL_STATE_UNKNOWN`, which stays for a record that
+  is gone.
+- A signed answer that authenticates but whose body cannot be read as an
+  answer, such as a rejection with no `reason`, from an operator who may
+  approve the hold, or where that cannot be told, leaves the call
+  `INDETERMINATE` and the hold standing. It was left out, so a valid approval
+  beside it could run, though it may be the rejection that wins. From an
+  operator who may not approve the hold it is left out. A file named for the
+  approval that cannot be read as an answer at all still makes the batch
+  unavailable, since it may be the rejection
+  ([ADR-0073](docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
+- A signed start reads the trust root key only from the file its check
+  judged, and refuses one renamed over the path in between. It opened the
+  key again by name after the check.
+- A signed plane refuses an `approvals.inbox_dir` its own account does not
+  own, at the start, in `doctor` and at every read, since that owner may
+  remove any operator's answer under the sticky bit, a rejection among them
+  ([approvals](docs/concepts/approvals-and-the-held-call.md)).
+- An inbox prune removes nothing from a directory this account does not
+  own, and says so. It unlinked there whatever stale answer the kernel let
+  it remove.
+- An approvals record whose `tenant`, `project` or any other member is
+  `null` is refused as a member of the wrong type. A `null` tenant or project
+  was read as empty.
 - An answer of the AuthZEN decision point whose body is not UTF-8 is refused
   with `PDP_ANSWER_REFUSED`, so the call is blocked. JSON text is UTF-8; such
   a body was read with replacement characters in its strings
@@ -42,6 +243,457 @@ verify one.
   with `EVIDENCE_UNAVAILABLE` also when its expiry has passed. Such an
   approval closed the hold as `APPROVAL_EXPIRED` before its version was
   read.
+- A request whose end was not read, waiting on no approval or of a closed
+  run, leaves `REPEATED_DENIAL`, `CONTINUED_AFTER_FAILURE` and the three
+  retry rules not checked, and `supervise` exits 1. Such a request is one an
+  export cut after its proposal, its approval request or before its failure,
+  and also, in a whole export, one of a closed run whose approval was never
+  answered: the plane ends a held request's trail only when the agent calls
+  again. A request waiting on its approval on an open run puts nothing in
+  doubt. Only a denied request with no block read did; any other was checked
+  with no finding, and a closed run could pass.
+- A `--source` whose descriptor does not say `SAMPLING_COMPLETE`, or one
+  silent, never heard or not read, leaves `STEP_OUTSIDE_PROCEDURE` and
+  `DENIED_ACTION_RETRIED_AROUND` not checked, findings kept. `supervise`
+  dropped the descriptor's sampling, so a sampled source that missed a call
+  left both checked.
+- A source whose observation log holds a write no import report closes,
+  such as an import cut short, leaves the same two rules not checked, and
+  `coverage` prints an `unclosed write` row and exits 1. The reader left the
+  write out and said nothing of it
+  ([supervision](docs/reference/supervision.md#the-verdict),
+  [coverage](docs/reference/coverage.md)).
+- A source's report of the denied tool after a denial is an `INDETERMINATE`
+  retry around it: no importer stamps a call's start, so the call may have
+  begun before the denial. It was a `SUSPECTED` retry.
+- An OpenTelemetry or egress log import whose source returns the full-buffer
+  error itself, rather than one wrapping it, now fails. It ended as a
+  complete import.
+- A proposal, decision, approval or result of a payload major `supervise`
+  does not read puts its request in doubt, and an approval of such a major
+  waives no finding. Such a payload was read under this major's rules
+  ([contracts](docs/contracts.md#schema-versioning)).
+- The findings log reader refuses a member spelled at its default, `0`,
+  `false`, `""`, `[]` or `{}`, which the writer leaves out, so an explicit
+  empty `sources_in_doubt` or a `0.2` member given as zero no longer passes
+  as a `0.1` record. The observation log reader does the same, so an empty
+  `refused_by` no longer passes as a `0.1` report
+  ([observations](docs/reference/observations.md#the-log)).
+- `supervise` refuses a run whose proposal names another tenant or project
+  than the event that carries it. A proposal of another project could raise
+  a confirmed finding under the collector's project.
+- The findings log reader and writer refuse a `CONFIRMED` finding that cites
+  an observation, which suggests at most.
+- A retry decided `REQUIRE_APPROVAL` whose approval request has not been read
+  is `INDETERMINATE`, as one waiting on its approval is. An export cut
+  between the decision and the request confirmed it, and could stop the run.
+- A reader refuses an export whose trailer counts bytes after the last
+  newline that no writer holds, with `end_reached` and no `partial_tail`
+  gap, so such an export no longer passes as whole
+  ([contracts](docs/contracts.md#the-evidence-export)).
+- **Breaking:** a signed plane refuses to start, and `doctor` fails, when
+  `records/` holds more than the 65,536 records a start reads to carry their
+  closes; `guardana-control runs prune` archives the expired trees to bring
+  it under. The start logged the cut and served, so the open record of a run
+  closed past the cut, put back, was taken
+  ([runs](docs/reference/runs.md),
+  [ADR-0076](docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)).
+- A signed child's first call beside a root whose state file is gone and
+  whose lock file is not leaves no `.seen`. The mark was made before the
+  call was refused, so once the root's state was put back the child ran
+  after its parent's close was carried.
+- A signed child's first call whose ancestor walk reads a closed ancestor
+  carries that close and is refused as `closed`. The walk took the closed
+  record as a link to its parent and admitted the grandchild
+  ([ADR-0079](docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close.md)).
+- **Breaking:** `react` under a signed route refuses an unsigned `--runs`
+  directory. The
+  route's `--roster` and `--root-key` did not count as flags that judge
+  records, so without `--tenant` and `--project` it took a stop's subject
+  from an unsigned record.
+- `react` reads a finding's run again once it holds the stop list's lock,
+  and a run closed while it waited is counted as not stopping; a run it
+  cannot read then, or one naming no subject of its rule's scope, stops the
+  pass. It wrote the stop from what it read
+  before the wait.
+- A signed restore takes a backed-up root whose lock file stands without its
+  state as untrusted with an unknown read, as the plane does, and refuses,
+  before its first write, a surviving root's lock file the join would refuse.
+  It left such a root's live state as it was, and stamped floors and carried
+  closes before it met the lock
+  ([back up and restore](docs/guides/back-up-and-restore-a-plane.md)).
+- A restore under the directory authority judges the backup's stop list
+  against the configured route also when the live list begins with it, and
+  refuses one written under a route since replaced. It kept the old list,
+  which the next start refused.
+- Signed `/healthz` and `doctor` report a stop naming another tenant's or
+  project's run as unheld, not as unread, which made the reaction check
+  unknown.
+- A list of another version put in place of the one a plane accepted is
+  refused naming both versions and saying to put the accepted list back, or,
+  for a `2.0` list in place of a `3.0` one, to carry it with
+  `stops init --carry`. The changed header was refused without either
+  ([reaction under signed](docs/reference/reaction-signed.md)).
+- `stops lift` refuses, with nothing written, a lift that ends no stop of
+  the list as it stands under the writer's lock, such as one signed against
+  the list before another lift ended that stop.
+- A signed start refuses a stop list its own account may write, an access
+  control list among the ways, as it refuses the stops directory. Only the
+  directory was judged
+  ([set up signed operators](docs/guides/set-up-signed-operators.md)).
+- `state backup` makes its directories `0700` and its copies `0600` whatever
+  the umask, as the guide says. A umask that took the owner's bits made them
+  narrower.
+- `state restore` refuses, before its first write, a configuration where the
+  temporary name a missing floor directory is built under is, or holds, a
+  path the configuration names, the hold journal and the keys among them,
+  compared through links and without case, also where neither name exists
+  yet, so every refusal comes before the first write; the build removes there
+  only a directory a build of its own left.
+  Building the floor removed that path first, so a route floor named there
+  was built again from the backup's lower serial, and a hold journal named
+  there was lost.
+- **Breaking:** a signed carry takes the write bits off the list it carried
+  from before it writes the new list, giving them back when that write left
+  no new list in place, and `react` and `stops lift` refuse a list its owner may not
+  write. A carry into a directory that already holds a list is refused before
+  the old list loses a bit. Run the carry as the old list's owner: under another account it
+  refuses before it writes anything. A 0.17 `react` left on the old list
+  fails to write; give the list its write bits back before 0.17 uses it
+  after a roll back. A stop appended to the old list after the carry reached
+  a plane still serving it and was missing from the new list, whose header
+  the plane's floor followed ([reaction under signed](docs/reference/reaction-signed.md),
+  [upgrade a plane from 0.17](docs/guides/upgrade-a-plane-from-0-17.md)).
+- `coverage` joins an `mcp_tool` path's observation only to a proposal the
+  MCP adapter recorded. An enforcement API proposal with the same ids, tool
+  and provider joined it too
+  ([coverage](docs/reference/coverage.md#the-join)).
+- `coverage` exits 1 when its map cannot be written to standard output. It
+  exited 2, the status of a refused input, after reading every input
+  ([coverage](docs/reference/coverage.md#output-and-exit-status)).
+- A shaped tool list cached before the plane halted material calls is shaped
+  again once the halt stands, so a tool the halt denies is hidden. The cached
+  list answered until its TTL ran out
+  ([MCP coverage](docs/reference/mcp-coverage.md#methods)).
+- A `tools/call` is recorded as sent with the bytes the upstream receives:
+  the agent's arguments as the protocol library writes them, without
+  whitespace between tokens and with U+2028 and U+2029 escaped. The record
+  named the agent's own spelling
+  ([contracts](docs/contracts.md#the-action-digest)).
+- A `tools/call` the gateway answers `-32603` because the upstream never
+  answered names its trail in `data`, as a wire error does. It carried no
+  `data`
+  ([MCP coverage](docs/reference/mcp-coverage.md#the-codes-the-adapter-mints)).
+- A call blocked because its envelope could not be built carries `refused`
+  with what the refusal said, as documented. Only an execution the adapter
+  did not send carried it
+  ([MCP coverage](docs/reference/mcp-coverage.md#the-codes-the-adapter-mints)).
+- A tool name, prompt name or resource URI that quotes a credential the
+  gateway holds, or that starts with `withheld:sha256:`, is recorded as
+  `withheld:sha256:` and the digest of the name when a client calls it; the
+  upstream still receives the name. The proposal recorded the name,
+  credential included
+  ([privacy](docs/concepts/privacy.md#what-an-evidence-event-holds)).
+- A `tools/call` admitted under a classification a manifest refresh withdrew
+  before the send is not sent outside `OBSERVE`: the adapter aborts it as
+  `ACTION_UNCLASSIFIED`, and an approved retry's approval stays spent. Under
+  `OBSERVE` it runs, as an unclassified call does. It ran under the decision
+  made for the old definition
+  ([MCP coverage](docs/reference/mcp-coverage.md#reason-codes-in-the-gateways-answers)).
+- `collect` answers a repeat of records it already holds only once it has
+  read each repeated record's line back where it wrote it, in a sealed
+  segment or the live one. A segment removed, cut or rewritten under it, or
+  another file put at a segment's name, makes it answer 503 and take nothing
+  more until it is started again. A repeat was answered 200 from the index
+  alone, so the plane released records the trail had lost
+  ([watch a plane without a collector](docs/guides/watch-a-plane-without-a-collector.md)).
+- `collect` and `prune` sync the directory the trail directory is named in
+  before the first answer, so a trail directory just made is still there
+  after a power loss. Evidence was acknowledged while the directory's own
+  name could still be lost.
+- A segment log whose `segments.json` is a symbolic link is refused by
+  `collect`, `prune` and every reader. The link was followed.
+- `prune` reads each segment it removes again before it writes the
+  tombstone, and refuses one that no longer holds what the manifest names,
+  changing nothing; it unlinks a segment's file only while its name still
+  names the file it read. A file put at a segment's name after the log was
+  opened was unlinked unread.
+- `trail export` of a segment log stops, exit 2 and with no trailer, at an
+  event of another tenant or project than the log is bound to. It wrote the
+  event, so an unfiltered export could report no gap
+  ([contracts](docs/contracts.md#a-directory-of-segments)). `trail` and a
+  scenario reading a segment log refuse such an event too; they read it as
+  an ordinary trail.
+- `trail export` of a segment log does not report the end at a sealed segment
+  when the live segment after it holds only bytes no newline ends; the export
+  after its cursor reports them. A torn live segment after a seal was hidden
+  behind `end_reached: true`.
+- `trail export` of a segment log no longer reports the end of the log when a
+  seal renamed the live segment while the export was reading the manifest,
+  also when the next write had made a new live file by then; it reads the
+  log again. The sealed segment was left out behind `end_reached: true`.
+- `evidence-report -state` keeps its cursor on an export of a live segment
+  that holds no whole line yet, and reads on once it does. It refused that
+  export as another file, or as one naming no `next_cursor`.
+- `trail export` writes a line holding a `null` as a `malformed` gap, not as
+  an event. The codec reads a `null` as an absent member, and the export's
+  reader refuses any record holding one, so an export of such a line could
+  not be read ([contracts](docs/contracts.md#the-evidence-export)).
+- A collector's 401 to a request without the credential is sent before the
+  body is read, and closes the connection. Go's server read a small unread
+  body first, so a slow body delayed the answer.
+- A collector refuses with 415 a request carrying a content coding in any
+  `Content-Encoding` field, or more than one `Content-Type` field. Only the
+  first field of each was read.
+- `collect` prints its socket as an `export.endpoint` a plane reads, with a
+  `#`, `?` or `%` in the path escaped. It printed the path as it stands,
+  which a plane refused or read as another path.
+- `collect` stops within ten seconds of its signal, or of its server
+  failing, also when a write is still waiting on the disk; that request is
+  not answered, and the plane sends it again. The stop waited on the write
+  without a bound.
+- The exporter refuses a collector's answer surrounded by bytes JSON does not
+  take as whitespace, such as a vertical tab, and sends the records again.
+  Such an answer was trimmed and accepted, releasing the records.
+- The page of the [Claude Code hooks](docs/reference/claude-code-hooks.md)
+  says what classing `Agent` as `EXECUTE` costs: a rule on
+  `SPAWN_OR_DELEGATE` never sees a sub-agent start and a rule that allows
+  `EXECUTE` allows it, so a policy decides `Agent` by its name or its
+  resource type, where a `DENY` or `REQUIRE_APPROVAL` overrides an `ALLOW`
+  on `EXECUTE`; the profile lists it among its gaps.
+- The enforcement API refuses a complete whose `resultHash` is not `sha256:`
+  and 64 lower-case hex digits as `ERROR_CODE_MALFORMED`. Any text up to
+  1 KiB was recorded, so a client could put a tool's output in the trail
+  and the collector's export with capture off
+  ([contracts](docs/contracts.md)). The Go and Python clients judge the hash
+  before sending it: a tool's result whose hash is in any other form is
+  completed `UNKNOWN` without the hash, and the Python client raises
+  `BadResult`.
+- An `EXECUTE` answer a shutdown overtakes reaches its client before the
+  plane records the execution abandoned. The answer could wait in the
+  server's buffer until after the abandon.
+- The Go and Python clients of the enforcement API abort an `EXECUTE` that
+  carries no authorized bytes also when the call proposed none, as ADR-0051
+  requires; they ran the tool with no bytes.
+- `scenario run` refuses a `/healthz` answer without a bundle digest, and a
+  trail compared against no digest cannot pass; both sides empty compared
+  equal ([scenario format](docs/reference/scenario-format.md)).
+- `scenario run` refuses to judge a step by a `POLICY_DECIDED` whose decision
+  is of a major this build does not read, whatever the event's own version.
+- `scenario run` compares reason codes item by item: one code holding
+  `RULE_UNDETERMINED, PDP_TIMEOUT` compared equal to the two codes.
+- `scenario run` and `dev --scenario` exit 2 when the report could not be
+  written to standard output, and say so on standard error; a pass nobody
+  could read exited 0.
+- The hook bridge refuses an event whose `tool_input` names a member twice
+  in any of its objects, before anything is sent; only a member the event
+  itself named twice was refused.
+- The scenario reader judges `kind` before the depth bound, as ADR-0022
+  orders it: a document of another kind with containers past the bound was
+  refused for its depth.
+- The qualification of the
+  [Claude Code hooks](docs/reference/claude-code-hooks.md) credits a decision
+  to a sub-agent's `Write` only when the trail holds more decided writes of that file than the other
+  calls that wrote it could account for.
+- A lookup in the trust roster judges the roster's expiry by the time read
+  after it waited on the trust floor's lock. A roster that expired while
+  another process held the lock still named its keys.
+- `guardana-gateway doctor` refuses a roster at the floor's serial with
+  another digest, and one naming a pinned key such as the policy key as an
+  operator, as a serving plane refuses both. It reported the trust check
+  `ok` for either.
+- A plane under `signed` takes a pause file only when the directory it read
+  the file from is still the one the pause path leads to. A link on the path
+  retargeted between the path's binding and the read let the plane take a
+  copy of a signed file from another directory.
+- The policy watcher's start judges a statement's expiry by the time read
+  after it read the floor and the files, and its start and its polls judge
+  it again once the floor's store holds its lock to raise the floor. A
+  statement that expired while another process held the floor's lock was
+  taken, and raised the floor.
+- `policy sign`, `route sign`, `operators roster sign`, `policy renew`,
+  `supervise --view` and the signed pause writers replace their output only
+  while it is still the file they judged: its inode, type, mode, size and
+  times, so another file put there or one reusing a freed inode number is
+  another; a rewrite in place to the same size within one tick of the file
+  system's clock is not seen. Writers of this program wait for each other on
+  a lock of the judged file and judge it again once they hold it, so of any
+  number of them only one replaces it and the others are refused with
+  nothing written; they lock the new file too until the swap settled, so a
+  writer that judged it waits rather than replacing it first. Any process
+  that can read the file can hold a lock of it: the write waits for it up to
+  the command's ten seconds, and the dev plane's statement renewal up to its
+  renewal period, then is refused with nothing written. Another program takes
+  no such lock: a file it puts there between that check and the swap comes
+  out of the swap and is put back, but
+  a reader of the name in that instant reads the refused file. A write
+  succeeds only while the name holds its own file once the swap settled. A
+  file renamed over the output after the last check was replaced, and with
+  three writers a refused file could end at the name.
+- `policy renew` runs over one `--out` under different signer floor
+  directories keep the newest statement, in any order: a run whose write was
+  refused with nothing written judges `--out` again, up to three times, and
+  writes over an older statement but not a newer one; a write that failed
+  having written ends the run, naming any file it left. The older statement
+  could be written over the newer, and a run could exit 0 with an older
+  statement at `--out`.
+- The policy watcher counts an unchanged statement past its budget as
+  expired and refuses it, judging the budget by the time read after the
+  floor. A statement the floor still took was confirmed again although it
+  had expired.
+- `policy renew` verifies a bundle signed under a key id a plane configures
+  for its key, not only the id the key derives; a bundle another key signed
+  is still refused. It refused such a bundle as naming no usable key.
+- Initialising a floor directory leaves it `0700` under any umask that keeps
+  the owner's read bit, and under one that takes it fails and leaves no
+  directory. Under a umask of `0200` or `0100` the initialisation could not
+  write its own new directory, failed, and left it `0500` or `0600`.
+- `guardana-gateway doctor` reports pause coverage as unknown, counting the
+  entries, when it cannot read a run record a pause entry names. It counted
+  such an entry as covering nothing and passed.
+- The [signed operators guide](docs/guides/set-up-signed-operators.md) says
+  that a sticky directory on a path, such as `/tmp`, passes the signed start
+  check although the plane's account may write it, as the check lets it; the
+  entry the path ends at never passes that way.
+- `procedure test` refuses an inline event whose `schemaVersion` is of
+  another major or not `MAJOR.MINOR`, as the export reader refuses it; such
+  an event was judged as if this build could read it.
+- `procedure test` exits 1 when it cannot write its report, as the exit
+  status table says for a failed case; it exited 2, the status of input
+  refused before any case ran.
+- `notify` counts an alert whose line could not be written to the program,
+  its standard input closed first, as a failed delivery; it marked the alert
+  delivered when the program then exited 0.
+- `notify` exits 1 on an interrupt while the log held only delivered alerts
+  and informs, and when the log ends in a write no report closed and no
+  writer holds, naming its bytes; both exited 0.
+- `run` exits 1 when the spool failed to close a segment it retired before
+  the stop; the failure was logged and the run exited 0.
+- `spool drain` creates the drained file and syncs it through the directory
+  it judged, so a link in the path retargeted at the spool after the check
+  cannot put the file in the spool.
+- `run` returns the error of a listener that failed on its own while the
+  stop was under way; it was dropped, and the run could exit 0.
+- `dev` refuses a configuration that sets `health.socket`; it started the
+  plane with that socket, outside its state directory and off the loopback
+  listeners its page names.
+- `console --until-stdin-closes` exits 1 when its standard input fails to
+  read, naming the failure; it stopped as at the input's end and exited 0.
+- The evidence-report example refuses a version whose major has a leading
+  zero, `01.0`, as the contracts do; it read it as major 1.
+
+- `make quality`, as CI and `scripts/gate-commit.sh` start it, reads the
+  `Makefile` by name, and the `Makefile` refuses a `GNUmakefile` or a
+  `makefile` beside it whatever the goal. make reads either one first when no
+  makefile is named, so a committed one could replace every check with a
+  recipe that prints the pass line. The nightly fuzz run, the race run and
+  the external MCP client job name the `Makefile` too.
+- `scripts/gate-commit.sh` refuses a commit holding a symbolic link that is
+  absolute or has a `..` component. The archive check compared a link's text,
+  so a test could read a fixture through it from outside the commit, and the
+  stamp rested on bytes the commit does not hold.
+- The pre-push hook and `scripts/gate-commit.sh` ignore a local grafts file,
+  a local shallow file and a local commit-graph, single or a chain, also when
+  `git -c` turns the graph on, as they ignore replace refs, and keep git's
+  advice about grafts out of their output. Each could hide an unstamped
+  commit from the hook that the remote would still receive. Both still trust
+  the local objects and the pusher's command line: they stop a mistake, not a
+  writer of `.git`.
+- The release checks the gate again right before it tags the image and right
+  before it publishes. A `main` that moved past the commit after the first
+  check stops the release at the next of those steps; what the earlier step
+  published stays. The upload of the client to the package index first checks
+  that the released commit's own CI and Security push runs on `main` passed,
+  so a re-run of it still works once `main` has moved on.
+- Publish names the release's tag in the request that publishes the draft,
+  and reads the release back under that tag. A writer who moved the draft to
+  another tag could have it published there while the job reported the tag it
+  was started for.
+- `scripts/scan-binaries.sh` refuses an archive without the binary of each
+  command under `cmd/` where goreleaser puts it. Any one Go binary satisfied
+  it, so a product archive without the command-line binary passed the
+  release's verification.
+- `make test` and `make test-race` refuse a module whose `./...` leaves out a
+  package that holds Go files, as a `go.mod` `ignore` directive does, or a
+  package the module's code imports, as one under `testdata` or a directory
+  whose name starts with `_` is, and a module that builds code from a vendor
+  directory, from a local `replace` target that is not one of the
+  repository's modules, or, through a replace of one of them, from its
+  `testdata` or a directory of it starting with `_`. That code's tests did not
+  run, and the reporter, which sees only the packages that ran, could not
+  tell. Not covered: a package only
+  a test file, only a program under `//go:build ignore`, or only a file for
+  another platform than the run's imports.
+- `scripts/two-accounts.sh` builds each package's test binary into a file of
+  its own. Two import paths that differ only by a `/` and a `_` shared one,
+  so a package with no test file in the tagged build ran the other's binary
+  under its own name.
+- The check that `scripts/expected-runs.txt` names every test of a
+  `twoaccounts` file reads the build tags as the job's build sets them:
+  release tags such as `go1.27`, `cgo`, and the toolchain's experiment tags.
+  A file under `twoaccounts && go1.27` or `twoaccounts && cgo` counted as in
+  neither build, so its tests could run in no job unnoticed.
+- `scripts/check-runs.go` counts a test as passed only after that test's
+  `run` event. A pass with no start in the stream was taken.
+- `scripts/fuzz-smoke.sh` refuses a line of a package's fuzz listing that no
+  file the build takes declares, such as one a `TestMain` prints before the
+  listing, and counts a target as run only when the fuzzing engine reports
+  executions in a verbose run that ran that target alone under its own name
+  for at least nine tenths of the time asked for, which must be whole
+  seconds, minutes or hours. It counted such a line as a target, and fuzzing
+  it, a target whose `TestMain` exits before fuzzing, one whose `TestMain`
+  points the engine at another target, or one whose `TestMain` cuts the fuzz
+  time, ran nothing or almost nothing. A `TestMain` that prints the engine's
+  report, the names and the time itself still passes.
+- The dependency rule refuses `time.Timer` and `time.Ticker` in the guarded
+  trees and the trees they reach, by name and through forbidigo. Their
+  `Reset` schedules from the clock, so a timer a caller handed in let such a
+  package read it.
+- The nightly, CI and Security workflows keep one concurrency group per
+  event, so a manual or scheduled run no longer replaces a run queued behind
+  another: a scheduled night whose red then went unreported, or a push to
+  `main` whose result the release then could not find.
+- The port inventory check refuses a doctor key in `scripts/ports.txt` that
+  the gateway's doctor does not report under. Any key but `none` passed.
+
+### Documentation
+
+- The landing page and the documentation pages share one layout: the same
+  header, footer and container at every width, every landing section opening
+  with the same heading block on one column split, and one rhythm on a phone.
+  A documentation table whose cells are sentences now reads as a list, one
+  item per row with each cell under its column's name; a compact table stays
+  a table, its code breaks after a slash, and one still too wide scrolls
+  inside its box.
+- Risk references map the 2026 OWASP Top 10 lists for Agentic Applications
+  and LLM Applications to project controls and tests
+  ([risk references](docs/reference/risks/owasp-agentic-top-10.md)). For
+  each risk, the page lists the controls that apply, known bypasses and
+  the gaps. It does the same for published advisories on agentic attacks.
+- A comparison, checked on 2026-11-20, of tools that check an agent's tool
+  calls against policy before they run: Microsoft's agent controls, Policy in Amazon
+  Bedrock AgentCore, Hexgate and Guardana Control
+  ([comparison](docs/concepts/agent-tool-call-controls.md)).
+- [Check a security-testing agent's calls against a scope you declare](docs/guides/check-a-security-testing-agent.md)
+  covers policy tests (`implemented`), and the MCP gateway, approvals by
+  command, a stop after repeated denials, proxy observations and coverage
+  (all `experimental`).
+- The fail-closed table names its third column "a cause in the policy's
+  availability". It was previously headed "the policy available" over the
+  same values, which made it appear that a fail-open read ran when the policy
+  was available rather than when it was unavailable
+  ([how a call is decided](docs/concepts/how-a-call-is-decided.md#when-the-kernel-cannot-decide)).
+- The release job's demo archive check stopped 0.19.0's release before it
+  attested, signed or published anything because the archive lacked
+  `examples/vulnerable-mcp-agent/attempts/manifest.json`, added in #134. The
+  demo archive now packs `examples/vulnerable-mcp-agent/attempts/*.json` with
+  the same owner, mode (`0644`) and time as the scenarios.
+
+## [0.19.0] - 2026-11-26
+
+Tagged and never published: the release job stopped at the demo archive
+check before it attested, signed or published anything. Its changes are
+listed under 0.19.1.
 
 ## [0.18.0] - 2026-11-18
 
@@ -2681,7 +3333,9 @@ yet.
   independence of this project from Guardana
   ([ADR-0024](docs/adr/0024-control-and-guardana-are-independent.md)).
 
-[Unreleased]: https://github.com/guardana/control/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/guardana/control/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/guardana/control/releases/tag/v0.19.1
+[0.19.0]: https://github.com/guardana/control/releases/tag/v0.19.0
 [0.18.0]: https://github.com/guardana/control/releases/tag/v0.18.0
 [0.17.0]: https://github.com/guardana/control/releases/tag/v0.17.0
 [0.16.0]: https://github.com/guardana/control/releases/tag/v0.16.0

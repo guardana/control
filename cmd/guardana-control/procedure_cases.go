@@ -196,13 +196,19 @@ func (c *casesReader) procedureCase(raw json.RawMessage, where string) procedure
 	return pc
 }
 
+// run reads a run as its record says, the project included: a record names
+// one, and supervise holds the run's events, tree and sources to it.
 func (c *casesReader) run(raw json.RawMessage, where string) supervise.Run {
-	m := c.object(raw, where, []string{"id", "tenant", "parent", "closed"}, nil)
+	m := c.object(raw, where, []string{"id", "tenant", "project", "parent", "closed"}, nil)
 	if c.err != nil {
 		return supervise.Run{}
 	}
-	return supervise.Run{ID: c.string(m, where, "id"), Tenant: c.string(m, where, "tenant"),
-		Parent: c.string(m, where, "parent"), Closed: c.bool(m, where, "closed")}
+	r := supervise.Run{ID: c.exactString(m, where, "id"), Tenant: c.exactString(m, where, "tenant"),
+		Project: c.exactString(m, where, "project"), Parent: c.exactString(m, where, "parent"), Closed: c.bool(m, where, "closed")}
+	if c.err == nil && r.Project == "" {
+		c.refuse(where, "project", errors.New("want a project"))
+	}
+	return r
 }
 
 // export reads one export: a path to an export file, or its events inline
@@ -232,6 +238,11 @@ func (c *casesReader) export(raw json.RawMessage, where string) supervise.Export
 	for i, item := range c.list(m["events"], where+".events") {
 		ev := &controlv1.Event{}
 		c.message(item, at(where+".events", i), ev)
+		if c.err == nil {
+			if err := coverage.CheckEventVersion(ev); err != nil {
+				c.fail(at(where+".events", i), err)
+			}
+		}
 		x.Events = append(x.Events, ev)
 	}
 	return x
@@ -271,13 +282,14 @@ func (c *casesReader) exportFile(path, where string) supervise.Export {
 
 // source reads one observation source: last_heard left out is a source
 // never heard. A case's observations are an agent runtime's spans, so its
-// source is of kind otel-genai-traces.
+// source is of kind otel-genai-traces, and they are every call it reported.
 func (c *casesReader) source(raw json.RawMessage, where string) supervise.Source {
 	m := c.object(raw, where, []string{"source_id", "heartbeat_seconds", "observations"}, []string{"last_heard"})
 	if c.err != nil {
 		return supervise.Source{}
 	}
-	s := supervise.Source{SourceID: c.string(m, where, "source_id"), Kind: observe.KindOTelGenAI}
+	s := supervise.Source{SourceID: c.string(m, where, "source_id"), Kind: observe.KindOTelGenAI,
+		Sampling: observev1.Sampling_SAMPLING_COMPLETE}
 	if hb := m["heartbeat_seconds"]; isNull(hb) || bytes.HasPrefix(bytes.TrimSpace(hb), []byte(`"`)) ||
 		json.Unmarshal(hb, &s.HeartbeatSeconds) != nil {
 		c.refuse(where, "heartbeat_seconds", errors.New("want a whole number of seconds"))
@@ -329,7 +341,7 @@ func (c *casesReader) finding(raw json.RawMessage, where string) caseFinding {
 	if c.err != nil {
 		return caseFinding{}
 	}
-	f := caseFinding{rule: c.string(m, where, "rule"), run: c.string(m, where, "run")}
+	f := caseFinding{rule: c.string(m, where, "rule"), run: c.exactString(m, where, "run")}
 	n, ok := enumNumber(controlv1.FindingVerdict(0).Descriptor(), "FINDING_VERDICT_", c.string(m, where, "verdict"))
 	if !ok || n == 0 {
 		c.refuse(where, "verdict", errors.New("want CONFIRMED, SUSPECTED or INDETERMINATE"))
@@ -344,7 +356,7 @@ func (c *casesReader) finding(raw json.RawMessage, where string) caseFinding {
 
 // ids reads a list of ids, each once, sorted.
 func (c *casesReader) ids(m map[string]json.RawMessage, where, key string) []string {
-	list := c.strings(m, where, key)
+	list := c.exactStrings(m, where, key)
 	slices.Sort(list)
 	for i := 1; i < len(list); i++ {
 		if list[i] == list[i-1] {

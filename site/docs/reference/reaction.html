@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction" aria-current="page">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -145,34 +155,34 @@ guardana-control stops lift --route &lt;file&gt; --public-key &lt;file&gt; --key
 <p>The route says which findings may stop a run: its tenant, and rules, each a
 procedure by id, version and digest and a supervise rule, with an optional
 lifetime for the stops it allows. Without one a stop lasts as long as its run.
-<code>route sign</code> signs it with its own key and writes it mode <code>0644</code>,
-replacing only an earlier signed route. It refuses any rule but the six whose finding
+<code>route sign</code> signs it, mode <code>0644</code>, replacing only the route it judged by a
+swap, locked against this program's writers only. It refuses any rule but the three whose finding
 may stop a run, each at its version: <code>REPEATED_DENIAL</code> at <code>2</code>, and
-<code>STEP_OUTSIDE_PROCEDURE</code>, <code>DEADLINE_EXCEEDED</code>, <code>RESOURCE_OUTSIDE_RUN</code>,
-<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code> at <code>1</code>.
+<code>STEP_OUTSIDE_PROCEDURE</code> and <code>RESOURCE_OUTSIDE_RUN</code> at <code>1</code>
+(<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>).
 Every reader of a signed route refuses one naming another, but
-<code>--carry-route</code>. The route also names the lift key, whose holder alone can
+<code>--carry-route</code> and <code>stops lift</code>. The route also names the lift key, whose holder alone can
 lift a stop; it need not be on the plane's machine.</p>
 <p>The route floor keeps, per route id, the highest serial a plane took and its
-digest, in a directory of its own that <code>policy state init --kind route</code> makes.
+digest, in its own directory that <code>policy state init --kind route</code> makes.
 At start a plane refuses a missing floor, a route below the floor's serial,
 and a route at that serial with another digest. It raises the floor once the
 list's first read is served, before it listens, and never makes one. A plane reads the route at start only: a stale route can
-only stop too much, never grant. Changing it, a rule's new version included,
-takes a carried list and a restart.</p>
+only stop too much. Changing it takes a carried list and a restart.</p>
 <h2 id="the-stop-list">The stop list</h2>
 <p><code>stops.jsonl</code> in an owner-only directory: a header naming the route, then
 <code>stop</code>, <code>covered</code> and <code>lift</code> lines, appended and never rewritten, at most
 4 MiB and 20 000 lines. Only the <code>stops</code> commands and <code>react</code> write it, each
-line under the list's lock, waiting up to ten seconds for another writer; a
+line under the list's lock, waiting up to ten seconds; a
 plane takes no lock. A writer cuts a torn last line before it appends, and refuses a write past the bound rather than cut an unread
 line.</p>
 <p><code>stops init</code> starts a list in an existing directory holding none. With
 <code>--carry</code> it copies the old list's unlifted stops, expired or not, and names every other finding of it as covered, judging the
 old list by <code>--carry-route</code> under the same route key and holding its lock
 until the new list is written, so the new list only adds. Only
-<code>--carry-route</code> may name a superseded version, <code>REPEATED_DENIAL</code> <code>1</code>: its stops
-keep it, judged as <code>2</code>, and no writer appends one. A version <code>2</code> finding
+<code>--carry-route</code> may name <code>REPEATED_DENIAL</code> <code>1</code>, its stops judged as <code>2</code>, or the
+deadline or a retry rule at <code>1</code>, its stops kept only within what the route
+grants now, else the carry names the <code>stops lift</code> to run first. No writer appends either. A version <code>2</code> finding
 stops a lifted run again. A list a plane
 refuses at one line is carried up to that line, and <code>stops init</code> says what it
 left out, unless a stop or covered line follows it or the line is dated past
@@ -184,16 +194,15 @@ header, each unlifted stop and whether it is active, the covered lines
 and lifts counted and the list's use of its bounds.</p>
 <h2 id="what-react-writes">What react writes</h2>
 <p><code>react</code> verifies the route before reading a finding, refuses a list whose
-header names another route, reads the findings log and looks each finding's run up in the runs directory,
-which it never writes. It holds no key and never lifts. For each finding the
+header names another route, reads the findings log and looks each finding's run up in the runs directory
+it never writes. It holds no key and never lifts. For each finding the
 list does not name yet, it writes a <code>covered</code> line when the run has an active
-stop lasting at least as long as the new one, and a <code>stop</code> otherwise,
-as the list stands under its lock, if:</p>
+stop lasting at least as long as the new one, and a <code>stop</code> otherwise, if:</p>
 <ul>
 <li>the finding is <code>DETERMINISTIC</code> and <code>CONFIRMED</code>; a suspected, indeterminate
 or model's finding stops nothing, and no setting changes that;</li>
-<li>its run is an opened run of its tenant and project, open and unexpired, a
-child included;</li>
+<li>its run is an opened run of its tenant and project, open and unexpired
+under the lock, a child included;</li>
 <li>the route permits it: its tenant, procedure and rule are a rule's.</li>
 </ul>
 <p>A finding the list names in any line writes nothing again, so a lift holds:
@@ -201,9 +210,8 @@ what a run did while stopped is covered; only a finding not yet listed, of any a
 plus the rule's lifetime, never after the run's expiry rounded up to the second. <code>react</code> prints each line it wrote and one
 count line, and exits 0 when every finding the route allows is on the list,
 and 1 on any refusal, naming each finding it could not write. An interrupt, or
-a lock wait that runs out, ends the pass after the lines it wrote.
-Nothing runs it: the operator runs <code>supervise</code> and <code>react</code> while the run is
-open.</p>
+a lock wait that runs out, ends the pass after its writes.
+The operator runs <code>supervise</code> and <code>react</code> while the run is open.</p>
 <h2 id="what-a-plane-checks">What a plane checks</h2>
 <p>At start, a plane with <code>reaction.route</code> refuses to serve unless all four of
 <code>reaction.route</code>, <code>reaction.public_key</code>, <code>reaction.floor_dir</code> and
@@ -211,8 +219,7 @@ open.</p>
 <code>reaction.public_key</code> names; its tenant is the listener's; the route, lift, policy and freshness keys
 are four keys, compared as points up to their sign; the floor takes the route;
 and the first read of the list finds a state it can serve.</p>
-<p>It reads the list every <code>reaction.poll_interval</code> into a snapshot, like the
-pause file. A read must extend the bytes it accepted before, with the
+<p>It reads the list every <code>reaction.poll_interval</code> into a snapshot. A read must extend the bytes it accepted before, with the
 same header; a list that is missing, a link, owned by another account,
 writable by the group or others, too large, refused by the judge, shrunk or
 rewritten, and a snapshot older than three intervals, are an unknown state.</p>
@@ -300,7 +307,10 @@ continuity is checked within one plane's life only.</li>
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -312,11 +322,13 @@ continuity is checked within one plane's life only.</li>
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -332,6 +344,7 @@ continuity is checked within one plane's life only.</li>
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -346,11 +359,15 @@ continuity is checked within one plane's life only.</li>
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction" aria-current="page">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -385,7 +402,7 @@ continuity is checked within one plane's life only.</li>
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

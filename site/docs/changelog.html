@@ -21,7 +21,7 @@
   <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
   <div class="right">
     <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
-    <a class="btn s sm" href="https://github.com/guardana/control">GitHub</a>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
   </div>
 </div></header>
 <div class="w shell">
@@ -35,7 +35,10 @@
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -47,11 +50,13 @@
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -67,6 +72,7 @@
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -81,11 +87,15 @@
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -128,39 +138,916 @@
 <a href="/docs/adr/0008-branching-and-release-policy">ADR-0008</a>. Each release is built,
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
-<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.18.0...HEAD">Unreleased</a></h2>
+<h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.19.1...HEAD">Unreleased</a></h2>
+<h2 id="0191---2026-11-27"><a href="https://github.com/guardana/control/releases/tag/v0.19.1">0.19.1</a> - 2026-11-27</h2>
+<p>Upgrading from 0.18 changes requirements across several tools, and more under
+<code>approvals.authority: signed</code>. <code>collect</code> and <code>prune</code> refuse symlinked trail
+directories and require parents owned by this account or root (sticky if
+writable by group or others). <code>collect</code> reads <code>--listen</code> as a URL; escape
+socket paths holding <code>#</code>, <code>?</code> or <code>%</code>. Signers, <code>policy renew</code>,
+<code>supervise --view</code>, signed pause writers and the dev statement swap names
+atomically to replace existing outputs, refusing where unsupported (outside
+Linux and macOS or on some network file systems). Remove <code>DEADLINE_EXCEEDED</code>,
+<code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and <code>DENIED_ACTION_RETRIED_RESOURCE</code> from
+routes (now version <code>2</code>, <code>SUSPECTED</code> at most, and never stopping runs, agents
+or principals) and <code>route sign</code> again; carry stops with <code>stops init --carry &lt;old list&gt; --carry-route &lt;old route&gt;</code> under the new route and review kept
+stops with <code>stops list</code>. In <code>procedure test</code>, add the record's project to
+<code>run</code> and each run in <code>tree</code>. In <code>notify</code>, name each needed variable with
+<code>--env</code>. Under <code>signed</code>, a plane refuses to start and <code>doctor</code> fails above
+65,536 records in <code>records/</code> (<code>guardana-control runs prune</code> archives expired
+trees), and <code>react</code> refuses an unsigned <code>--runs</code> directory. Run a signed carry
+as the old list's owner; it takes the write bits off the old list before
+writing the new one
+(<a href="/docs/guides/upgrade-a-plane-from-0-18">upgrade a plane from 0.18</a>).</p>
+<p>New: <code>guardana-gateway attempts run</code> counts the effects and legitimate steps
+of scripted attempts at the demo's victim journals
+(<a href="/docs/adr/0086-controlled-attempts-are-counted-at-the-victim">ADR-0086</a>).
+<code>guardana-control policy compare</code> simulates decisions under the current and a
+candidate policy through the kernel's own evaluation, counting unknown cases
+apart
+(<a href="/docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation">ADR-0087</a>).
+Risk references map the published agentic and LLM risk lists to the controls
+that address them. This release fixes what a whole-tree audit found across the
+plane, the evidence trail, supervision, the signed files and the gates. The
+hook profile, qualified on two releases of its runtime, was not qualified
+again for this release. 0.19.0 was tagged with most of these changes and
+never published: its release job stopped at the demo archive check.</p>
+<h3 id="changed">Changed</h3>
+<ul>
+<li><strong>Breaking:</strong> <code>collect</code> and <code>prune</code> refuse a trail directory whose parent
+is owned by an account other than this one or root, or may be written by
+the group or others without being sticky, and a trail directory that is a
+symbolic link. They open the trail directory through the parent they
+judged, so <code>--dir P/l/../trail</code> is <code>P/trail</code> and not where the link <code>l</code>
+leads. Only the trail directory itself was checked
+(<a href="/docs/guides/watch-a-plane-without-a-collector">watch a plane without a collector</a>).</li>
+<li><strong>Breaking:</strong> <code>collect</code> reads <code>--listen</code> as a URL: escapes in its path are
+undone, so the endpoint it prints names the same socket when given back,
+and a host, a query, a fragment or a <code>%</code> that escapes nothing is refused.
+A socket path holding <code>#</code>, <code>?</code> or <code>%</code> is given escaped, as <code>collect</code>
+prints it.</li>
+<li><strong>Breaking:</strong> <code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>,
+<code>policy renew</code>, <code>supervise --view</code>, the signed pause writers and the dev
+plane's statement replace an existing output by swapping two names in one
+step, and refuse to replace it where the platform or file system cannot,
+as outside Linux and macOS or on some network file systems. A first
+output, where nothing stands yet, is written as before.</li>
+<li><strong>Breaking:</strong> <code>DEADLINE_EXCEEDED</code>, <code>DENIED_ACTION_RETRIED_ARGUMENTS</code> and
+<code>DENIED_ACTION_RETRIED_RESOURCE</code> are rule version <code>2</code> and <code>SUSPECTED</code> at
+most, and none of them may stop a run, an agent or a principal. Each
+compares two events' times, and nothing in an event or an export names
+the plane whose clock stamped it: two planes may send to one collector,
+so a call on a fast clock could look later than a denial it preceded, or a
+run longer than it was. <code>route sign</code>, <code>react</code> and a plane loading its route
+refuse a route naming any of them, at either version, by name. The same
+evidence now gives a finding with a new id, so a notifier delivers it as a
+new record. To upgrade, remove those rules from the route, <code>route sign</code> it
+again, and <code>stops init --carry &lt;old list&gt; --carry-route &lt;old route&gt;</code> under
+the new route. A stop those rules wrote is kept, never lifted by the
+upgrade, only where a rule of the new route still stops its procedure at
+its scope, for no longer than that rule allows; no new one is written. A
+carry that cannot keep a stop is refused, naming the stop and the
+<code>stops lift</code> that ends it: run it on the old list with the old route,
+which <code>stops lift</code> takes for that alone, then carry again. <code>stops lift</code>
+takes no <code>reaction-route/v1alpha2</code> route, so a carry from a 0.17 list
+names two other ways instead: give the new route the rule it names, at
+the stop's scope and lasting at least the stop's span, sign it and carry
+again, or, where the route already names that rule at another scope, give
+that rule the stop's scope, since a route names a rule once; or start a new
+list with <code>stops init</code> under a new stop list floor (<code>stops floor init</code>),
+which keeps none of the old stops. A carry keeps each stop's tenant and
+project, so a carry into a route of another names only a route of the
+list's or a new list. <code>stops list</code>
+shows each kept stop's rule; review those and lift any you do not keep. The
+example's <code>0.2</code> route now stops on <code>RESOURCE_OUTSIDE_RUN</code>
+(<a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>,
+<a href="/docs/reference/reaction">reaction</a>).</li>
+<li><strong>Breaking:</strong> a <code>procedure test</code> cases document states <code>project</code> in <code>run</code>
+and in each run of <code>tree</code>; a document without it is refused with exit 2,
+naming the member. Add the project the run's record names. The format
+stays <code>0.1</code>, <code>experimental</code>
+(<a href="/docs/guides/test-a-procedure#2-write-a-case">test a procedure</a>).</li>
+<li><strong>Breaking:</strong> <code>notify</code> runs the program with only <code>PATH</code>, <code>HOME</code>, <code>LANG</code>,
+<code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code> of its own environment, and with each
+variable a new, repeatable <code>--env &lt;name&gt;</code> names; a name not set is refused
+with exit 2 before any program runs, and no value is printed. The program
+got the whole environment, a credential included. A program that reads a
+token, a proxy or a certificate path from its environment no longer gets
+it, and may still exit 0: name each variable it needs with <code>--env</code>
+(<a href="/docs/reference/supervision#notify">supervision</a>).</li>
+</ul>
+<h3 id="added">Added</h3>
+<ul>
+<li><code>guardana-gateway attempts run</code> (<code>experimental</code>) runs a manifest of scripted
+attempts against the demo's victims, each on a fresh dev plane, and counts
+each named effect and each legitimate step at the victims' journals, with a
+positive control on an OBSERVE plane and a negative control, in a report
+written line by line
+(<a href="/docs/reference/attempt-format">attempt format</a>,
+<a href="/docs/adr/0086-controlled-attempts-are-counted-at-the-victim">ADR-0086</a>).
+The demo's manifest is <code>examples/vulnerable-mcp-agent/attempts/manifest.json</code>.</li>
+<li><code>guardana-control policy compare</code> (<code>experimental</code>) decides policy test
+cases and an evidence export's requests under the current and a candidate
+policy through the kernel's own evaluation, and writes a
+<code>policy-comparison/v1alpha1</code> report of each case's change, every result
+marked simulated. A case it cannot judge, for a missing fact, a decision on
+another policy, a gap or a disagreement with the recorded decision, is
+unknown with its reason and counted apart; a <code>policy-case-labels/v1alpha1</code>
+file counts cases by label and change. It sends no call, consumes no
+approval and activates no policy
+(<a href="/docs/reference/policy-compare">policy compare</a>,
+<a href="/docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation">ADR-0087</a>).</li>
+</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li><code>supervise</code> lists a step's requests, and a finding cites and keeps its
+<li>
+<p><code>policy test</code>, <code>policy explain</code> and <code>policy compare</code> refuse a case whose
+<code>authorized_args</code> is not valid UTF-8 or holds an unpaired surrogate escape
+such as <code>\ud800</code>, naming the member. The case reader put U+FFFD in place
+of such bytes, so the kernel decided other arguments than the case wrote,
+and a case could pass <code>ALLOW</code> for bytes the kernel refuses
+(<a href="/docs/reference/policy-format#a-test-case">policy format</a>).</p>
+</li>
+<li>
+<p>A <code>procedure test</code> case states the project its run's record names, as
+<code>project</code> in <code>run</code> and in each run of <code>tree</code>, and is judged as <code>supervise</code>
+judges that run: events or a run of another project fail the case as
+<code>refused:</code>, and its sources are of the run's project. The case took the
+project from its events, so a case passed with a finding that <code>supervise</code>
+would refuse to make for a run recorded under another project
+(<a href="/docs/guides/test-a-procedure#2-write-a-case">test a procedure</a>).</p>
+</li>
+<li>
+<p><code>supervise</code> lists a step's requests, and a finding cites and keeps its
 references, in the order of the plane's times of the proposals, a tie by
 request id. It used the order in which an export first held each request,
 which follows the order the plane's batches reached the collector, so two
 exports of one run could list requests differently and a finding citing
 more than ten could keep other references
-(<a href="/docs/reference/supervision">supervision</a>).</li>
-<li>An answer of the AuthZEN decision point whose body is not UTF-8 is refused
+(<a href="/docs/reference/supervision">supervision</a>).</p>
+</li>
+<li>
+<p>A signed start refuses a header a variable sets with its hyphens spelled
+as they are, such as <code>GUARDANA_CONTROL_EXPORT_HEADERS_X-TENANT</code>, as it
+refuses every other key the environment sets. Only a header spelled with
+<code>_</code> was refused; the hyphenated one was applied and the start went on.</p>
+</li>
+<li>
+<p>A retry checks the pause, the stops, the clock and the policy again after
+the approval authority answers and before it spends the approval. A stop
+published, or a policy gone stale, while the answer was read spent the
+approval although the call was then blocked; the hold now stands for a
+later retry.</p>
+</li>
+<li>
+<p>A retry whose approved answer fails the checks made again at its last
+reading before the spend, such as one past the expiry, reads the ledger
+before it closes the held trail. If the ledger marks the approval spent,
+the retry is refused <code>APPROVAL_ALREADY_USED</code>. If the ledger cannot be read,
+the retry is blocked <code>EVIDENCE_UNAVAILABLE</code> and the hold stays open. The
+held trail used to be closed without a ledger read.</p>
+</li>
+<li>
+<p>When a retry finds that another call took the hold it was closing, either
+a retry that spent the approval or the expiry sweep, it is now blocked on a
+trail of its own, under its own request id, and the block is counted. The
+code is <code>APPROVAL_ALREADY_USED</code> if the ledger then marks the approval
+spent, and <code>EVIDENCE_UNAVAILABLE</code> otherwise. Such a retry used to get
+<code>EVIDENCE_UNAVAILABLE</code> under the held request's id, with no trail of its
+own and no block counted.</p>
+</li>
+<li>
+<p>A refusal of an upstream's <code>env</code> or <code>args</code> item the configuration reader
+cannot read, such as <code>API_KEY=value&amp;x</code> or <code>--token=value&amp;x</code>, no longer
+repeats the item, which can hold a pasted credential.</p>
+</li>
+<li>
+<p>The configuration refuses a block written twice, such as two <code>policy:</code>
+mappings, naming both lines. Two blocks whose keys differed were merged.</p>
+</li>
+<li>
+<p>The configuration refuses a key holding a <code>.</code>, such as
+<code>policy.fail_open_read: true</code>; a path is written as nested blocks. The
+dotted spelling reopened a block already written.</p>
+</li>
+<li>
+<p><code>doctor</code> reads the spent ledger beside the hold journal as <code>run</code> opens and
+sweeps it, and fails naming it where <code>run</code> would refuse it: a damaged
+<code>ledger.meta</code>, a name the ledger did not write or a mark that will not
+decode. It printed <code>ok</code> for the approvals and <code>run</code> then refused to start.
+A mark a running plane removes while <code>doctor</code> reads the ledger is passed.</p>
+</li>
+<li>
+<p><code>/healthz</code> reports the <code>directory</code> approval authority <code>unavailable</code> once
+its approvals directory is not the one the plane opened; it said <code>usable</code>
+whatever became of it.</p>
+</li>
+<li>
+<p>After a restart, a signed plane closes an unexpired lost hold that nobody
+answered <code>APPROVAL_EXPIRED</code> while the hold's record stands, as the
+directory kind does and <a href="/docs/reference/failure-modes">failure modes</a>
+says. It closed it <code>APPROVAL_STATE_UNKNOWN</code>, which stays for a record that
+is gone.</p>
+</li>
+<li>
+<p>A signed answer that authenticates but whose body cannot be read as an
+answer, such as a rejection with no <code>reason</code>, from an operator who may
+approve the hold, or where that cannot be told, leaves the call
+<code>INDETERMINATE</code> and the hold standing. It was left out, so a valid approval
+beside it could run, though it may be the rejection that wins. From an
+operator who may not approve the hold it is left out. A file named for the
+approval that cannot be read as an answer at all still makes the batch
+unavailable, since it may be the rejection
+(<a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>).</p>
+</li>
+<li>
+<p>A signed start reads the trust root key only from the file its check
+judged, and refuses one renamed over the path in between. It opened the
+key again by name after the check.</p>
+</li>
+<li>
+<p>A signed plane refuses an <code>approvals.inbox_dir</code> its own account does not
+own, at the start, in <code>doctor</code> and at every read, since that owner may
+remove any operator's answer under the sticky bit, a rejection among them
+(<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>).</p>
+</li>
+<li>
+<p>An inbox prune removes nothing from a directory this account does not
+own, and says so. It unlinked there whatever stale answer the kernel let
+it remove.</p>
+</li>
+<li>
+<p>An approvals record whose <code>tenant</code>, <code>project</code> or any other member is
+<code>null</code> is refused as a member of the wrong type. A <code>null</code> tenant or project
+was read as empty.</p>
+</li>
+<li>
+<p>An answer of the AuthZEN decision point whose body is not UTF-8 is refused
 with <code>PDP_ANSWER_REFUSED</code>, so the call is blocked. JSON text is UTF-8; such
 a body was read with replacement characters in its strings
-(<a href="/docs/guides/let-a-decision-point-veto">let a decision point veto</a>).</li>
-<li>An answer a decision point returns once its deadline, or the caller's, has
+(<a href="/docs/guides/let-a-decision-point-veto">let a decision point veto</a>).</p>
+</li>
+<li>
+<p>An answer a decision point returns once its deadline, or the caller's, has
 passed is a timeout, <code>PDP_TIMEOUT</code>, and one returned after the caller
 cancelled is <code>PDP_UNAVAILABLE</code>, whatever either says. The gateway took the
 answer an in-process decision point returned late, so an allow that came
-after the deadline lifted the veto.</li>
-<li>An approval whose expiry is not a valid timestamp, with nanos out of range
+after the deadline lifted the veto.</p>
+</li>
+<li>
+<p>An approval whose expiry is not a valid timestamp, with nanos out of range
 or a second past year 9999, is expired and never spent, and one whose
 decision time is not a valid timestamp is no decision. Each was normalised
-to another moment, which could fall inside the hold's window.</li>
-<li>The binary decoder refuses an int32 member outside int32, as it does an
+to another moment, which could fall inside the hold's window.</p>
+</li>
+<li>
+<p>The binary decoder refuses an int32 member outside int32, as it does an
 enum number, so a timestamp's <code>nanos</code> sent as 2^32+1 is refused before the
 parse instead of arriving as one nanosecond. Only bytes no conforming
 encoder writes are refused
-(<a href="/docs/contracts#decoding-and-validation">contracts</a>).</li>
-<li>A retry whose approval names a major this build does not read is refused
+(<a href="/docs/contracts#decoding-and-validation">contracts</a>).</p>
+</li>
+<li>
+<p>A retry whose approval names a major this build does not read is refused
 with <code>EVIDENCE_UNAVAILABLE</code> also when its expiry has passed. Such an
 approval closed the hold as <code>APPROVAL_EXPIRED</code> before its version was
-read.</li>
+read.</p>
+</li>
+<li>
+<p>A request whose end was not read, waiting on no approval or of a closed
+run, leaves <code>REPEATED_DENIAL</code>, <code>CONTINUED_AFTER_FAILURE</code> and the three
+retry rules not checked, and <code>supervise</code> exits 1. Such a request is one an
+export cut after its proposal, its approval request or before its failure,
+and also, in a whole export, one of a closed run whose approval was never
+answered: the plane ends a held request's trail only when the agent calls
+again. A request waiting on its approval on an open run puts nothing in
+doubt. Only a denied request with no block read did; any other was checked
+with no finding, and a closed run could pass.</p>
+</li>
+<li>
+<p>A <code>--source</code> whose descriptor does not say <code>SAMPLING_COMPLETE</code>, or one
+silent, never heard or not read, leaves <code>STEP_OUTSIDE_PROCEDURE</code> and
+<code>DENIED_ACTION_RETRIED_AROUND</code> not checked, findings kept. <code>supervise</code>
+dropped the descriptor's sampling, so a sampled source that missed a call
+left both checked.</p>
+</li>
+<li>
+<p>A source whose observation log holds a write no import report closes,
+such as an import cut short, leaves the same two rules not checked, and
+<code>coverage</code> prints an <code>unclosed write</code> row and exits 1. The reader left the
+write out and said nothing of it
+(<a href="/docs/reference/supervision#the-verdict">supervision</a>,
+<a href="/docs/reference/coverage">coverage</a>).</p>
+</li>
+<li>
+<p>A source's report of the denied tool after a denial is an <code>INDETERMINATE</code>
+retry around it: no importer stamps a call's start, so the call may have
+begun before the denial. It was a <code>SUSPECTED</code> retry.</p>
+</li>
+<li>
+<p>An OpenTelemetry or egress log import whose source returns the full-buffer
+error itself, rather than one wrapping it, now fails. It ended as a
+complete import.</p>
+</li>
+<li>
+<p>A proposal, decision, approval or result of a payload major <code>supervise</code>
+does not read puts its request in doubt, and an approval of such a major
+waives no finding. Such a payload was read under this major's rules
+(<a href="/docs/contracts#schema-versioning">contracts</a>).</p>
+</li>
+<li>
+<p>The findings log reader refuses a member spelled at its default, <code>0</code>,
+<code>false</code>, <code>&quot;&quot;</code>, <code>[]</code> or <code>{}</code>, which the writer leaves out, so an explicit
+empty <code>sources_in_doubt</code> or a <code>0.2</code> member given as zero no longer passes
+as a <code>0.1</code> record. The observation log reader does the same, so an empty
+<code>refused_by</code> no longer passes as a <code>0.1</code> report
+(<a href="/docs/reference/observations#the-log">observations</a>).</p>
+</li>
+<li>
+<p><code>supervise</code> refuses a run whose proposal names another tenant or project
+than the event that carries it. A proposal of another project could raise
+a confirmed finding under the collector's project.</p>
+</li>
+<li>
+<p>The findings log reader and writer refuse a <code>CONFIRMED</code> finding that cites
+an observation, which suggests at most.</p>
+</li>
+<li>
+<p>A retry decided <code>REQUIRE_APPROVAL</code> whose approval request has not been read
+is <code>INDETERMINATE</code>, as one waiting on its approval is. An export cut
+between the decision and the request confirmed it, and could stop the run.</p>
+</li>
+<li>
+<p>A reader refuses an export whose trailer counts bytes after the last
+newline that no writer holds, with <code>end_reached</code> and no <code>partial_tail</code>
+gap, so such an export no longer passes as whole
+(<a href="/docs/contracts#the-evidence-export">contracts</a>).</p>
+</li>
+<li>
+<p><strong>Breaking:</strong> a signed plane refuses to start, and <code>doctor</code> fails, when
+<code>records/</code> holds more than the 65,536 records a start reads to carry their
+closes; <code>guardana-control runs prune</code> archives the expired trees to bring
+it under. The start logged the cut and served, so the open record of a run
+closed past the cut, put back, was taken
+(<a href="/docs/reference/runs">runs</a>,
+<a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>).</p>
+</li>
+<li>
+<p>A signed child's first call beside a root whose state file is gone and
+whose lock file is not leaves no <code>.seen</code>. The mark was made before the
+call was refused, so once the root's state was put back the child ran
+after its parent's close was carried.</p>
+</li>
+<li>
+<p>A signed child's first call whose ancestor walk reads a closed ancestor
+carries that close and is refused as <code>closed</code>. The walk took the closed
+record as a link to its parent and admitted the grandchild
+(<a href="/docs/adr/0079-a-signed-plane-admits-a-child-only-if-it-saw-it-before-its-parents-close">ADR-0079</a>).</p>
+</li>
+<li>
+<p><strong>Breaking:</strong> <code>react</code> under a signed route refuses an unsigned <code>--runs</code>
+directory. The
+route's <code>--roster</code> and <code>--root-key</code> did not count as flags that judge
+records, so without <code>--tenant</code> and <code>--project</code> it took a stop's subject
+from an unsigned record.</p>
+</li>
+<li>
+<p><code>react</code> reads a finding's run again once it holds the stop list's lock,
+and a run closed while it waited is counted as not stopping; a run it
+cannot read then, or one naming no subject of its rule's scope, stops the
+pass. It wrote the stop from what it read
+before the wait.</p>
+</li>
+<li>
+<p>A signed restore takes a backed-up root whose lock file stands without its
+state as untrusted with an unknown read, as the plane does, and refuses,
+before its first write, a surviving root's lock file the join would refuse.
+It left such a root's live state as it was, and stamped floors and carried
+closes before it met the lock
+(<a href="/docs/guides/back-up-and-restore-a-plane">back up and restore</a>).</p>
+</li>
+<li>
+<p>A restore under the directory authority judges the backup's stop list
+against the configured route also when the live list begins with it, and
+refuses one written under a route since replaced. It kept the old list,
+which the next start refused.</p>
+</li>
+<li>
+<p>Signed <code>/healthz</code> and <code>doctor</code> report a stop naming another tenant's or
+project's run as unheld, not as unread, which made the reaction check
+unknown.</p>
+</li>
+<li>
+<p>A list of another version put in place of the one a plane accepted is
+refused naming both versions and saying to put the accepted list back, or,
+for a <code>2.0</code> list in place of a <code>3.0</code> one, to carry it with
+<code>stops init --carry</code>. The changed header was refused without either
+(<a href="/docs/reference/reaction-signed">reaction under signed</a>).</p>
+</li>
+<li>
+<p><code>stops lift</code> refuses, with nothing written, a lift that ends no stop of
+the list as it stands under the writer's lock, such as one signed against
+the list before another lift ended that stop.</p>
+</li>
+<li>
+<p>A signed start refuses a stop list its own account may write, an access
+control list among the ways, as it refuses the stops directory. Only the
+directory was judged
+(<a href="/docs/guides/set-up-signed-operators">set up signed operators</a>).</p>
+</li>
+<li>
+<p><code>state backup</code> makes its directories <code>0700</code> and its copies <code>0600</code> whatever
+the umask, as the guide says. A umask that took the owner's bits made them
+narrower.</p>
+</li>
+<li>
+<p><code>state restore</code> refuses, before its first write, a configuration where the
+temporary name a missing floor directory is built under is, or holds, a
+path the configuration names, the hold journal and the keys among them,
+compared through links and without case, also where neither name exists
+yet, so every refusal comes before the first write; the build removes there
+only a directory a build of its own left.
+Building the floor removed that path first, so a route floor named there
+was built again from the backup's lower serial, and a hold journal named
+there was lost.</p>
+</li>
+<li>
+<p><strong>Breaking:</strong> a signed carry takes the write bits off the list it carried
+from before it writes the new list, giving them back when that write left
+no new list in place, and <code>react</code> and <code>stops lift</code> refuse a list its owner may not
+write. A carry into a directory that already holds a list is refused before
+the old list loses a bit. Run the carry as the old list's owner: under another account it
+refuses before it writes anything. A 0.17 <code>react</code> left on the old list
+fails to write; give the list its write bits back before 0.17 uses it
+after a roll back. A stop appended to the old list after the carry reached
+a plane still serving it and was missing from the new list, whose header
+the plane's floor followed (<a href="/docs/reference/reaction-signed">reaction under signed</a>,
+<a href="/docs/guides/upgrade-a-plane-from-0-17">upgrade a plane from 0.17</a>).</p>
+</li>
+<li>
+<p><code>coverage</code> joins an <code>mcp_tool</code> path's observation only to a proposal the
+MCP adapter recorded. An enforcement API proposal with the same ids, tool
+and provider joined it too
+(<a href="/docs/reference/coverage#the-join">coverage</a>).</p>
+</li>
+<li>
+<p><code>coverage</code> exits 1 when its map cannot be written to standard output. It
+exited 2, the status of a refused input, after reading every input
+(<a href="/docs/reference/coverage#output-and-exit-status">coverage</a>).</p>
+</li>
+<li>
+<p>A shaped tool list cached before the plane halted material calls is shaped
+again once the halt stands, so a tool the halt denies is hidden. The cached
+list answered until its TTL ran out
+(<a href="/docs/reference/mcp-coverage#methods">MCP coverage</a>).</p>
+</li>
+<li>
+<p>A <code>tools/call</code> is recorded as sent with the bytes the upstream receives:
+the agent's arguments as the protocol library writes them, without
+whitespace between tokens and with U+2028 and U+2029 escaped. The record
+named the agent's own spelling
+(<a href="/docs/contracts#the-action-digest">contracts</a>).</p>
+</li>
+<li>
+<p>A <code>tools/call</code> the gateway answers <code>-32603</code> because the upstream never
+answered names its trail in <code>data</code>, as a wire error does. It carried no
+<code>data</code>
+(<a href="/docs/reference/mcp-coverage#the-codes-the-adapter-mints">MCP coverage</a>).</p>
+</li>
+<li>
+<p>A call blocked because its envelope could not be built carries <code>refused</code>
+with what the refusal said, as documented. Only an execution the adapter
+did not send carried it
+(<a href="/docs/reference/mcp-coverage#the-codes-the-adapter-mints">MCP coverage</a>).</p>
+</li>
+<li>
+<p>A tool name, prompt name or resource URI that quotes a credential the
+gateway holds, or that starts with <code>withheld:sha256:</code>, is recorded as
+<code>withheld:sha256:</code> and the digest of the name when a client calls it; the
+upstream still receives the name. The proposal recorded the name,
+credential included
+(<a href="/docs/concepts/privacy#what-an-evidence-event-holds">privacy</a>).</p>
+</li>
+<li>
+<p>A <code>tools/call</code> admitted under a classification a manifest refresh withdrew
+before the send is not sent outside <code>OBSERVE</code>: the adapter aborts it as
+<code>ACTION_UNCLASSIFIED</code>, and an approved retry's approval stays spent. Under
+<code>OBSERVE</code> it runs, as an unclassified call does. It ran under the decision
+made for the old definition
+(<a href="/docs/reference/mcp-coverage#reason-codes-in-the-gateways-answers">MCP coverage</a>).</p>
+</li>
+<li>
+<p><code>collect</code> answers a repeat of records it already holds only once it has
+read each repeated record's line back where it wrote it, in a sealed
+segment or the live one. A segment removed, cut or rewritten under it, or
+another file put at a segment's name, makes it answer 503 and take nothing
+more until it is started again. A repeat was answered 200 from the index
+alone, so the plane released records the trail had lost
+(<a href="/docs/guides/watch-a-plane-without-a-collector">watch a plane without a collector</a>).</p>
+</li>
+<li>
+<p><code>collect</code> and <code>prune</code> sync the directory the trail directory is named in
+before the first answer, so a trail directory just made is still there
+after a power loss. Evidence was acknowledged while the directory's own
+name could still be lost.</p>
+</li>
+<li>
+<p>A segment log whose <code>segments.json</code> is a symbolic link is refused by
+<code>collect</code>, <code>prune</code> and every reader. The link was followed.</p>
+</li>
+<li>
+<p><code>prune</code> reads each segment it removes again before it writes the
+tombstone, and refuses one that no longer holds what the manifest names,
+changing nothing; it unlinks a segment's file only while its name still
+names the file it read. A file put at a segment's name after the log was
+opened was unlinked unread.</p>
+</li>
+<li>
+<p><code>trail export</code> of a segment log stops, exit 2 and with no trailer, at an
+event of another tenant or project than the log is bound to. It wrote the
+event, so an unfiltered export could report no gap
+(<a href="/docs/contracts#a-directory-of-segments">contracts</a>). <code>trail</code> and a
+scenario reading a segment log refuse such an event too; they read it as
+an ordinary trail.</p>
+</li>
+<li>
+<p><code>trail export</code> of a segment log does not report the end at a sealed segment
+when the live segment after it holds only bytes no newline ends; the export
+after its cursor reports them. A torn live segment after a seal was hidden
+behind <code>end_reached: true</code>.</p>
+</li>
+<li>
+<p><code>trail export</code> of a segment log no longer reports the end of the log when a
+seal renamed the live segment while the export was reading the manifest,
+also when the next write had made a new live file by then; it reads the
+log again. The sealed segment was left out behind <code>end_reached: true</code>.</p>
+</li>
+<li>
+<p><code>evidence-report -state</code> keeps its cursor on an export of a live segment
+that holds no whole line yet, and reads on once it does. It refused that
+export as another file, or as one naming no <code>next_cursor</code>.</p>
+</li>
+<li>
+<p><code>trail export</code> writes a line holding a <code>null</code> as a <code>malformed</code> gap, not as
+an event. The codec reads a <code>null</code> as an absent member, and the export's
+reader refuses any record holding one, so an export of such a line could
+not be read (<a href="/docs/contracts#the-evidence-export">contracts</a>).</p>
+</li>
+<li>
+<p>A collector's 401 to a request without the credential is sent before the
+body is read, and closes the connection. Go's server read a small unread
+body first, so a slow body delayed the answer.</p>
+</li>
+<li>
+<p>A collector refuses with 415 a request carrying a content coding in any
+<code>Content-Encoding</code> field, or more than one <code>Content-Type</code> field. Only the
+first field of each was read.</p>
+</li>
+<li>
+<p><code>collect</code> prints its socket as an <code>export.endpoint</code> a plane reads, with a
+<code>#</code>, <code>?</code> or <code>%</code> in the path escaped. It printed the path as it stands,
+which a plane refused or read as another path.</p>
+</li>
+<li>
+<p><code>collect</code> stops within ten seconds of its signal, or of its server
+failing, also when a write is still waiting on the disk; that request is
+not answered, and the plane sends it again. The stop waited on the write
+without a bound.</p>
+</li>
+<li>
+<p>The exporter refuses a collector's answer surrounded by bytes JSON does not
+take as whitespace, such as a vertical tab, and sends the records again.
+Such an answer was trimmed and accepted, releasing the records.</p>
+</li>
+<li>
+<p>The page of the <a href="/docs/reference/claude-code-hooks">Claude Code hooks</a>
+says what classing <code>Agent</code> as <code>EXECUTE</code> costs: a rule on
+<code>SPAWN_OR_DELEGATE</code> never sees a sub-agent start and a rule that allows
+<code>EXECUTE</code> allows it, so a policy decides <code>Agent</code> by its name or its
+resource type, where a <code>DENY</code> or <code>REQUIRE_APPROVAL</code> overrides an <code>ALLOW</code>
+on <code>EXECUTE</code>; the profile lists it among its gaps.</p>
+</li>
+<li>
+<p>The enforcement API refuses a complete whose <code>resultHash</code> is not <code>sha256:</code>
+and 64 lower-case hex digits as <code>ERROR_CODE_MALFORMED</code>. Any text up to
+1 KiB was recorded, so a client could put a tool's output in the trail
+and the collector's export with capture off
+(<a href="/docs/contracts">contracts</a>). The Go and Python clients judge the hash
+before sending it: a tool's result whose hash is in any other form is
+completed <code>UNKNOWN</code> without the hash, and the Python client raises
+<code>BadResult</code>.</p>
+</li>
+<li>
+<p>An <code>EXECUTE</code> answer a shutdown overtakes reaches its client before the
+plane records the execution abandoned. The answer could wait in the
+server's buffer until after the abandon.</p>
+</li>
+<li>
+<p>The Go and Python clients of the enforcement API abort an <code>EXECUTE</code> that
+carries no authorized bytes also when the call proposed none, as ADR-0051
+requires; they ran the tool with no bytes.</p>
+</li>
+<li>
+<p><code>scenario run</code> refuses a <code>/healthz</code> answer without a bundle digest, and a
+trail compared against no digest cannot pass; both sides empty compared
+equal (<a href="/docs/reference/scenario-format">scenario format</a>).</p>
+</li>
+<li>
+<p><code>scenario run</code> refuses to judge a step by a <code>POLICY_DECIDED</code> whose decision
+is of a major this build does not read, whatever the event's own version.</p>
+</li>
+<li>
+<p><code>scenario run</code> compares reason codes item by item: one code holding
+<code>RULE_UNDETERMINED, PDP_TIMEOUT</code> compared equal to the two codes.</p>
+</li>
+<li>
+<p><code>scenario run</code> and <code>dev --scenario</code> exit 2 when the report could not be
+written to standard output, and say so on standard error; a pass nobody
+could read exited 0.</p>
+</li>
+<li>
+<p>The hook bridge refuses an event whose <code>tool_input</code> names a member twice
+in any of its objects, before anything is sent; only a member the event
+itself named twice was refused.</p>
+</li>
+<li>
+<p>The scenario reader judges <code>kind</code> before the depth bound, as ADR-0022
+orders it: a document of another kind with containers past the bound was
+refused for its depth.</p>
+</li>
+<li>
+<p>The qualification of the
+<a href="/docs/reference/claude-code-hooks">Claude Code hooks</a> credits a decision
+to a sub-agent's <code>Write</code> only when the trail holds more decided writes of that file than the other
+calls that wrote it could account for.</p>
+</li>
+<li>
+<p>A lookup in the trust roster judges the roster's expiry by the time read
+after it waited on the trust floor's lock. A roster that expired while
+another process held the lock still named its keys.</p>
+</li>
+<li>
+<p><code>guardana-gateway doctor</code> refuses a roster at the floor's serial with
+another digest, and one naming a pinned key such as the policy key as an
+operator, as a serving plane refuses both. It reported the trust check
+<code>ok</code> for either.</p>
+</li>
+<li>
+<p>A plane under <code>signed</code> takes a pause file only when the directory it read
+the file from is still the one the pause path leads to. A link on the path
+retargeted between the path's binding and the read let the plane take a
+copy of a signed file from another directory.</p>
+</li>
+<li>
+<p>The policy watcher's start judges a statement's expiry by the time read
+after it read the floor and the files, and its start and its polls judge
+it again once the floor's store holds its lock to raise the floor. A
+statement that expired while another process held the floor's lock was
+taken, and raised the floor.</p>
+</li>
+<li>
+<p><code>policy sign</code>, <code>route sign</code>, <code>operators roster sign</code>, <code>policy renew</code>,
+<code>supervise --view</code> and the signed pause writers replace their output only
+while it is still the file they judged: its inode, type, mode, size and
+times, so another file put there or one reusing a freed inode number is
+another; a rewrite in place to the same size within one tick of the file
+system's clock is not seen. Writers of this program wait for each other on
+a lock of the judged file and judge it again once they hold it, so of any
+number of them only one replaces it and the others are refused with
+nothing written; they lock the new file too until the swap settled, so a
+writer that judged it waits rather than replacing it first. Any process
+that can read the file can hold a lock of it: the write waits for it up to
+the command's ten seconds, and the dev plane's statement renewal up to its
+renewal period, then is refused with nothing written. Another program takes
+no such lock: a file it puts there between that check and the swap comes
+out of the swap and is put back, but
+a reader of the name in that instant reads the refused file. A write
+succeeds only while the name holds its own file once the swap settled. A
+file renamed over the output after the last check was replaced, and with
+three writers a refused file could end at the name.</p>
+</li>
+<li>
+<p><code>policy renew</code> runs over one <code>--out</code> under different signer floor
+directories keep the newest statement, in any order: a run whose write was
+refused with nothing written judges <code>--out</code> again, up to three times, and
+writes over an older statement but not a newer one; a write that failed
+having written ends the run, naming any file it left. The older statement
+could be written over the newer, and a run could exit 0 with an older
+statement at <code>--out</code>.</p>
+</li>
+<li>
+<p>The policy watcher counts an unchanged statement past its budget as
+expired and refuses it, judging the budget by the time read after the
+floor. A statement the floor still took was confirmed again although it
+had expired.</p>
+</li>
+<li>
+<p><code>policy renew</code> verifies a bundle signed under a key id a plane configures
+for its key, not only the id the key derives; a bundle another key signed
+is still refused. It refused such a bundle as naming no usable key.</p>
+</li>
+<li>
+<p>Initialising a floor directory leaves it <code>0700</code> under any umask that keeps
+the owner's read bit, and under one that takes it fails and leaves no
+directory. Under a umask of <code>0200</code> or <code>0100</code> the initialisation could not
+write its own new directory, failed, and left it <code>0500</code> or <code>0600</code>.</p>
+</li>
+<li>
+<p><code>guardana-gateway doctor</code> reports pause coverage as unknown, counting the
+entries, when it cannot read a run record a pause entry names. It counted
+such an entry as covering nothing and passed.</p>
+</li>
+<li>
+<p>The <a href="/docs/guides/set-up-signed-operators">signed operators guide</a> says
+that a sticky directory on a path, such as <code>/tmp</code>, passes the signed start
+check although the plane's account may write it, as the check lets it; the
+entry the path ends at never passes that way.</p>
+</li>
+<li>
+<p><code>procedure test</code> refuses an inline event whose <code>schemaVersion</code> is of
+another major or not <code>MAJOR.MINOR</code>, as the export reader refuses it; such
+an event was judged as if this build could read it.</p>
+</li>
+<li>
+<p><code>procedure test</code> exits 1 when it cannot write its report, as the exit
+status table says for a failed case; it exited 2, the status of input
+refused before any case ran.</p>
+</li>
+<li>
+<p><code>notify</code> counts an alert whose line could not be written to the program,
+its standard input closed first, as a failed delivery; it marked the alert
+delivered when the program then exited 0.</p>
+</li>
+<li>
+<p><code>notify</code> exits 1 on an interrupt while the log held only delivered alerts
+and informs, and when the log ends in a write no report closed and no
+writer holds, naming its bytes; both exited 0.</p>
+</li>
+<li>
+<p><code>run</code> exits 1 when the spool failed to close a segment it retired before
+the stop; the failure was logged and the run exited 0.</p>
+</li>
+<li>
+<p><code>spool drain</code> creates the drained file and syncs it through the directory
+it judged, so a link in the path retargeted at the spool after the check
+cannot put the file in the spool.</p>
+</li>
+<li>
+<p><code>run</code> returns the error of a listener that failed on its own while the
+stop was under way; it was dropped, and the run could exit 0.</p>
+</li>
+<li>
+<p><code>dev</code> refuses a configuration that sets <code>health.socket</code>; it started the
+plane with that socket, outside its state directory and off the loopback
+listeners its page names.</p>
+</li>
+<li>
+<p><code>console --until-stdin-closes</code> exits 1 when its standard input fails to
+read, naming the failure; it stopped as at the input's end and exited 0.</p>
+</li>
+<li>
+<p>The evidence-report example refuses a version whose major has a leading
+zero, <code>01.0</code>, as the contracts do; it read it as major 1.</p>
+</li>
+<li>
+<p><code>make quality</code>, as CI and <code>scripts/gate-commit.sh</code> start it, reads the
+<code>Makefile</code> by name, and the <code>Makefile</code> refuses a <code>GNUmakefile</code> or a
+<code>makefile</code> beside it whatever the goal. make reads either one first when no
+makefile is named, so a committed one could replace every check with a
+recipe that prints the pass line. The nightly fuzz run, the race run and
+the external MCP client job name the <code>Makefile</code> too.</p>
+</li>
+<li>
+<p><code>scripts/gate-commit.sh</code> refuses a commit holding a symbolic link that is
+absolute or has a <code>..</code> component. The archive check compared a link's text,
+so a test could read a fixture through it from outside the commit, and the
+stamp rested on bytes the commit does not hold.</p>
+</li>
+<li>
+<p>The pre-push hook and <code>scripts/gate-commit.sh</code> ignore a local grafts file,
+a local shallow file and a local commit-graph, single or a chain, also when
+<code>git -c</code> turns the graph on, as they ignore replace refs, and keep git's
+advice about grafts out of their output. Each could hide an unstamped
+commit from the hook that the remote would still receive. Both still trust
+the local objects and the pusher's command line: they stop a mistake, not a
+writer of <code>.git</code>.</p>
+</li>
+<li>
+<p>The release checks the gate again right before it tags the image and right
+before it publishes. A <code>main</code> that moved past the commit after the first
+check stops the release at the next of those steps; what the earlier step
+published stays. The upload of the client to the package index first checks
+that the released commit's own CI and Security push runs on <code>main</code> passed,
+so a re-run of it still works once <code>main</code> has moved on.</p>
+</li>
+<li>
+<p>Publish names the release's tag in the request that publishes the draft,
+and reads the release back under that tag. A writer who moved the draft to
+another tag could have it published there while the job reported the tag it
+was started for.</p>
+</li>
+<li>
+<p><code>scripts/scan-binaries.sh</code> refuses an archive without the binary of each
+command under <code>cmd/</code> where goreleaser puts it. Any one Go binary satisfied
+it, so a product archive without the command-line binary passed the
+release's verification.</p>
+</li>
+<li>
+<p><code>make test</code> and <code>make test-race</code> refuse a module whose <code>./...</code> leaves out a
+package that holds Go files, as a <code>go.mod</code> <code>ignore</code> directive does, or a
+package the module's code imports, as one under <code>testdata</code> or a directory
+whose name starts with <code>_</code> is, and a module that builds code from a vendor
+directory, from a local <code>replace</code> target that is not one of the
+repository's modules, or, through a replace of one of them, from its
+<code>testdata</code> or a directory of it starting with <code>_</code>. That code's tests did not
+run, and the reporter, which sees only the packages that ran, could not
+tell. Not covered: a package only
+a test file, only a program under <code>//go:build ignore</code>, or only a file for
+another platform than the run's imports.</p>
+</li>
+<li>
+<p><code>scripts/two-accounts.sh</code> builds each package's test binary into a file of
+its own. Two import paths that differ only by a <code>/</code> and a <code>_</code> shared one,
+so a package with no test file in the tagged build ran the other's binary
+under its own name.</p>
+</li>
+<li>
+<p>The check that <code>scripts/expected-runs.txt</code> names every test of a
+<code>twoaccounts</code> file reads the build tags as the job's build sets them:
+release tags such as <code>go1.27</code>, <code>cgo</code>, and the toolchain's experiment tags.
+A file under <code>twoaccounts &amp;&amp; go1.27</code> or <code>twoaccounts &amp;&amp; cgo</code> counted as in
+neither build, so its tests could run in no job unnoticed.</p>
+</li>
+<li>
+<p><code>scripts/check-runs.go</code> counts a test as passed only after that test's
+<code>run</code> event. A pass with no start in the stream was taken.</p>
+</li>
+<li>
+<p><code>scripts/fuzz-smoke.sh</code> refuses a line of a package's fuzz listing that no
+file the build takes declares, such as one a <code>TestMain</code> prints before the
+listing, and counts a target as run only when the fuzzing engine reports
+executions in a verbose run that ran that target alone under its own name
+for at least nine tenths of the time asked for, which must be whole
+seconds, minutes or hours. It counted such a line as a target, and fuzzing
+it, a target whose <code>TestMain</code> exits before fuzzing, one whose <code>TestMain</code>
+points the engine at another target, or one whose <code>TestMain</code> cuts the fuzz
+time, ran nothing or almost nothing. A <code>TestMain</code> that prints the engine's
+report, the names and the time itself still passes.</p>
+</li>
+<li>
+<p>The dependency rule refuses <code>time.Timer</code> and <code>time.Ticker</code> in the guarded
+trees and the trees they reach, by name and through forbidigo. Their
+<code>Reset</code> schedules from the clock, so a timer a caller handed in let such a
+package read it.</p>
+</li>
+<li>
+<p>The nightly, CI and Security workflows keep one concurrency group per
+event, so a manual or scheduled run no longer replaces a run queued behind
+another: a scheduled night whose red then went unreported, or a push to
+<code>main</code> whose result the release then could not find.</p>
+</li>
+<li>
+<p>The port inventory check refuses a doctor key in <code>scripts/ports.txt</code> that
+the gateway's doctor does not report under. Any key but <code>none</code> passed.</p>
+</li>
 </ul>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li>The landing page and the documentation pages share one layout: the same
+header, footer and container at every width, every landing section opening
+with the same heading block on one column split, and one rhythm on a phone.
+A documentation table whose cells are sentences now reads as a list, one
+item per row with each cell under its column's name; a compact table stays
+a table, its code breaks after a slash, and one still too wide scrolls
+inside its box.</li>
+<li>Risk references map the 2026 OWASP Top 10 lists for Agentic Applications
+and LLM Applications to project controls and tests
+(<a href="/docs/reference/risks/owasp-agentic-top-10">risk references</a>). For
+each risk, the page lists the controls that apply, known bypasses and
+the gaps. It does the same for published advisories on agentic attacks.</li>
+<li>A comparison, checked on 2026-11-20, of tools that check an agent's tool
+calls against policy before they run: Microsoft's agent controls, Policy in Amazon
+Bedrock AgentCore, Hexgate and Guardana Control
+(<a href="/docs/concepts/agent-tool-call-controls">comparison</a>).</li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent's calls against a scope you declare</a>
+covers policy tests (<code>implemented</code>), and the MCP gateway, approvals by
+command, a stop after repeated denials, proxy observations and coverage
+(all <code>experimental</code>).</li>
+<li>The fail-closed table names its third column &quot;a cause in the policy's
+availability&quot;. It was previously headed &quot;the policy available&quot; over the
+same values, which made it appear that a fail-open read ran when the policy
+was available rather than when it was unavailable
+(<a href="/docs/concepts/how-a-call-is-decided#when-the-kernel-cannot-decide">how a call is decided</a>).</li>
+<li>The release job's demo archive check stopped 0.19.0's release before it
+attested, signed or published anything because the archive lacked
+<code>examples/vulnerable-mcp-agent/attempts/manifest.json</code>, added in #134. The
+demo archive now packs <code>examples/vulnerable-mcp-agent/attempts/*.json</code> with
+the same owner, mode (<code>0644</code>) and time as the scenarios.</li>
+</ul>
+<h2 id="0190---2026-11-26"><a href="https://github.com/guardana/control/releases/tag/v0.19.0">0.19.0</a> - 2026-11-26</h2>
+<p>Tagged and never published: the release job stopped at the demo archive
+check before it attested, signed or published anything. Its changes are
+listed under 0.19.1.</p>
 <h2 id="0180---2026-11-18"><a href="https://github.com/guardana/control/releases/tag/v0.18.0">0.18.0</a> - 2026-11-18</h2>
 <p>Upgrading from 0.17 changes three things on every plane, and more under
 <code>approvals.authority: signed</code>. On every plane the health answer is schema
@@ -187,7 +1074,7 @@ outside the project
 (<a href="/docs/adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met">ADR-0085</a>).
 The hook profile, qualified on two releases of its runtime, was not
 qualified again for this release.</p>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a plane needs <code>plane_id</code>, an
 identifier the operator chooses for it, set in the configuration file; any
@@ -278,7 +1165,7 @@ stable id, its label and one sentence that links to the row's details; the
 landing page names a row by its id. A wide documentation table scrolls in
 its own box on a phone.</li>
 </ul>
-<h3 id="added">Added</h3>
+<h3 id="added-1">Added</h3>
 <ul>
 <li>Under <code>signed</code> a route rule for <code>REPEATED_DENIAL</code>, <code>DENIED_ACTION_RETRIED_ARGUMENTS</code>
 or <code>DENIED_ACTION_RETRIED_RESOURCE</code> may stop the agent or the principal of
@@ -319,7 +1206,7 @@ says so. An OpenTelemetry or egress log import whose source fails with an
 error wrapping <code>io.EOF</code>, or one matching a full read buffer, now fails,
 where it ended as a complete import.</li>
 </ul>
-<h3 id="documentation">Documentation</h3>
+<h3 id="documentation-1">Documentation</h3>
 <ul>
 <li>Three reading paths on the documentation index, a shorter first tutorial
 with <a href="/docs/get-started/try-the-rest-of-the-demo">a follow-up</a>, and pages
@@ -362,7 +1249,7 @@ more accounts run in their own CI job
 Under <code>signed</code> the plane's own account still raises the roster's floor, so it
 can keep the plane on the roster it holds until that roster expires. The hook
 profile's qualification was not run again for this release.</p>
-<h3 id="added-1">Added</h3>
+<h3 id="added-2">Added</h3>
 <ul>
 <li>When <code>health.socket</code> is set, <code>doctor</code> checks whom the socket answers and
 judges its directory as a start does. It warns about the first directory
@@ -376,7 +1263,7 @@ passed (<a href="/docs/adr/0081-tests-that-need-a-second-account-run-in-a-requir
 <code>scripts/lib/github-settings.sh</code> declares it a required check; it gates a
 pull request once the maintainer applies those settings.</li>
 </ul>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> the plane refuses to start when <code>health.socket_uid</code> names
 the plane's own account, and <code>doctor</code> fails its <code>health.socket</code> check: the
@@ -478,7 +1365,7 @@ one run, agent or principal. Under <code>signed</code> the plane's own account s
 raises the roster's floor, so it can withhold a newer roster within the held
 one's lifetime. The hook profile's qualification was not run again for this
 release.</p>
-<h3 id="added-2">Added</h3>
+<h3 id="added-3">Added</h3>
 <ul>
 <li>Under <code>approvals.authority: signed</code> roster operators sign the reaction
 documents, bound to the plane's route file or stop list: an <code>admin</code> signs a
@@ -606,7 +1493,7 @@ path but a stale socket of the plane's account is refused, and the plane
 removes its socket when it stops.</li>
 <li><code>doctor</code> warns of every TCP <code>export.endpoint</code>, naming the unix form.</li>
 </ul>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a <code>v1alpha1</code> route, a
 <code>1.0</code> stop list, a lift of the route's lift key and <code>reaction.public_key</code>
@@ -763,7 +1650,7 @@ as preserved, without comparing content, so a second record with that id,
 or with no id, was acknowledged and lost. It now tells records apart by
 their whole line.</li>
 </ul>
-<h3 id="added-3">Added</h3>
+<h3 id="added-4">Added</h3>
 <ul>
 <li>
 <p>A test holds <code>scripts/ports.txt</code> to the tree: every line whole, its
@@ -853,7 +1740,7 @@ effect class's presence and what a class requires, for an envelope nothing
 classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
 </li>
 </ul>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> <code>trail &lt;file&gt;</code> refuses a file in a log's directory, named
@@ -1243,7 +2130,7 @@ GHSA-333x-w4r6-6crp, GHSA-w74x-v6f9-j3xg, GHSA-wjr9-j795-jxcr and
 GHSA-xhq7-xmqj-769h. Both are packages below the server, at the version its
 fingerprints were taken from; nothing this project ships uses them.</li>
 </ul>
-<h3 id="added-4">Added</h3>
+<h3 id="added-5">Added</h3>
 <ul>
 <li><code>pkg/contract</code> exports <code>EffectRequires</code>, what <code>Validate</code> requires of each
 effect class
@@ -1390,7 +2277,7 @@ pass all 20 cases.</li>
 point's published metadata gives its identifier or evaluation endpoint as
 JSON <code>null</code>, as it does for any other value that is not a string.</li>
 </ul>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li>The <a href="/docs/reference/claude-code-hooks">built-in hook profile</a> is
 qualified on a newer release of its runtime too: all 20 cases passed on the
@@ -1455,7 +2342,7 @@ Among the pre-release audit's fixes: the receiver serves only the listener it
 locked, and <code>OBSERVE</code> counts a stale hand-out only for a call its policy let
 run. The project is still alpha, and the <code>0.x</code> series makes no compatibility
 promise between minor versions.</p>
-<h3 id="added-5">Added</h3>
+<h3 id="added-6">Added</h3>
 <ul>
 <li><code>guardana-control hook</code> takes a coding runtime's tool events to a plane's
 enforcement API: a call runs only when the plane answers <code>EXECUTE</code> of
@@ -1500,7 +2387,7 @@ connections, so a second plane could remove its socket and take its clients
 Built for Solaris, illumos or AIX, which have no <code>flock</code>, the receiver now
 refuses to listen, and <code>doctor</code> checks the lock file as <code>run</code> would.</li>
 </ul>
-<h3 id="changed-5">Changed</h3>
+<h3 id="changed-6">Changed</h3>
 <ul>
 <li>A call is handed out only while the policy bundle it was decided under is
 still installed and fresh. A bundle replaced, or past its staleness budget,
@@ -1527,7 +2414,7 @@ removes a socket a live receiver may hold, supervision reports a deadline not
 checked when an event of the run has no timestamp, and <code>react</code> reads the clock
 for each stop as it writes it. The project is still alpha, and the <code>0.x</code>
 series makes no compatibility promise between minor versions.</p>
-<h3 id="added-6">Added</h3>
+<h3 id="added-7">Added</h3>
 <ul>
 <li>A Python client of the <code>experimental</code> enforcement API, under
 <code>clients/python/</code> and imported as <code>guardana_control.enforce</code>
@@ -1555,7 +2442,7 @@ to PyPI by trusted publishing, with no stored token, and reads the index
 back. The dry run uploads a development release to TestPyPI the same way,
 from <code>main</code>.</li>
 </ul>
-<h3 id="changed-6">Changed</h3>
+<h3 id="changed-7">Changed</h3>
 <ul>
 <li>A change reaches <code>main</code> as one squash-merged pull request whose gate is
 CI's <code>make quality</code>, a maintainer's own included; only a release commit is
@@ -1611,7 +2498,7 @@ another account could rewrite. From this release a version is a plain
 (<a href="/docs/adr/0025-public-repository-merges-and-releases">ADR-0025</a>); the
 project is still alpha, and the <code>0.x</code> series still makes no compatibility
 promise between minor versions.</p>
-<h3 id="added-7">Added</h3>
+<h3 id="added-8">Added</h3>
 <ul>
 <li>The enforcement API contract, <code>guardana.control.enforce.v1alpha1</code>: the
 <code>admit</code>, <code>complete</code> and <code>abort</code> messages a tool outside MCP exchanges with
@@ -1665,7 +2552,7 @@ qualifying coding-agent hooks, reviewing tool-definition changes,
 simulating candidate policies and reviewing findings with an incident
 export. None is built.</li>
 </ul>
-<h3 id="changed-7">Changed</h3>
+<h3 id="changed-8">Changed</h3>
 <ul>
 <li>On an <code>enforce_api</code> plane <code>/metrics</code> writes the enforcement API adapter's
 counts (<code>enforce_*</code>) and the flag <code>listener_enforce_api</code>, and leaves out the
@@ -1797,7 +2684,7 @@ published release rather than the next one, the repository's GitHub settings
 have a read-only check, and a pause file replaced during a read is read
 again. 0.10.1-alpha was tagged with most of these changes and never
 published: its release job stopped at the new image scan.</p>
-<h3 id="added-8">Added</h3>
+<h3 id="added-9">Added</h3>
 <ul>
 <li>The release scans every binary it ships before anything is attested or
 published: each binary of every archive and the image's binary for
@@ -1811,7 +2698,7 @@ a user writes or reads with the version this release writes, the versions it
 reads and its stability, held to the code's constants by a test. The wire
 contract's <code>1.0</code> is the one stable format; the product is still 0.x.</li>
 </ul>
-<h3 id="changed-8">Changed</h3>
+<h3 id="changed-9">Changed</h3>
 <ul>
 <li>The website names the published release, which <code>docs/docs.json</code> sets once a
 release is out, rather than the newest dated section of this file, and each
@@ -1882,7 +2769,7 @@ GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608 and GO-2026-6610 in
 <code>mime/multipart</code> and <code>os</code>; <code>govulncheck</code> found the plane's calls reaching
 the HTTP/2 ones under 1.27.1.</li>
 </ul>
-<h3 id="added-9">Added</h3>
+<h3 id="added-10">Added</h3>
 <ul>
 <li>Procedure schema <code>0.2</code>, read beside <code>0.1</code>
 (<a href="/docs/adr/0047-a-procedure-states-its-exceptions-resources-and-children">ADR-0047</a>).
@@ -1921,7 +2808,7 @@ line as well as colour. It shows each finding's calls and their neighbours,
 or with <code>--view-all</code> every call up to a bound
 (<a href="/docs/reference/run-view">run view</a>).</li>
 </ul>
-<h3 id="changed-9">Changed</h3>
+<h3 id="changed-10">Changed</h3>
 <ul>
 <li>Every reader of a route (<code>route sign</code>, <code>react</code>, a plane at start, <code>doctor</code> and
 the <code>stops</code> commands) refuses one that names a rule or a rule version outside
@@ -1991,7 +2878,7 @@ when it has a second name: a checkout under a umask of 002 needs
 user. An upstream that asks for more input ends the call as failed. A second
 override of one tool is refused at start. <code>runs open --parent</code> refuses a
 child whose expiry would pass its parent's.</p>
-<h3 id="added-10">Added</h3>
+<h3 id="added-11">Added</h3>
 <ul>
 <li>A confirmed finding can stop the run it is about
 (<a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>).
@@ -2010,7 +2897,7 @@ stopped run's children are not stopped. <code>doctor</code>, <code>/healthz</cod
 report the route and the list; <code>examples/refund-supervision/</code> stops one of
 two runs on a live plane and lifts the stop.</li>
 </ul>
-<h3 id="changed-10">Changed</h3>
+<h3 id="changed-11">Changed</h3>
 <ul>
 <li>The policy key and the freshness key, in the configuration and in
 <code>guardana-control policy renew</code>, are compared as points up to their sign:
@@ -2137,7 +3024,7 @@ observed tool call, and supervision let the runtime's own report of a step
 count as the step. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-11">Added</h3>
+<h3 id="added-12">Added</h3>
 <ul>
 <li><code>guardana-control coverage</code> prints, for each path an operator declares in an
 inventory, whether a plane enforces it, decides it without enforcing it, a
@@ -2162,7 +3049,7 @@ suspected at most, and a skipped step is never confirmed. No plane reads a
 finding, and no finding stops a run. <code>examples/refund-supervision/</code> runs it
 on a live plane.</li>
 </ul>
-<h3 id="changed-11">Changed</h3>
+<h3 id="changed-12">Changed</h3>
 <ul>
 <li>An upstream's answer, wire error, listed item or tool definition that quotes
 a credential the plane sends reaches the agent as a fixed answer, never with
@@ -2214,7 +3101,7 @@ accepted another account's directory; and the commit gate could stamp a
 commit that broke the wire contract. <a href="/docs/status">docs/status.md</a> says
 what is <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security
 boundary yet.</p>
-<h3 id="added-12">Added</h3>
+<h3 id="added-13">Added</h3>
 <ul>
 <li>Observations: <code>guardana-control observe import</code> reads an agent runtime's
 OpenTelemetry GenAI spans (OTLP/JSON, conventions 1.41.0) for one source an
@@ -2231,7 +3118,7 @@ envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joi
 runtime's traces. A missing or malformed value leaves both empty and changes
 nothing else.</li>
 </ul>
-<h3 id="changed-12">Changed</h3>
+<h3 id="changed-13">Changed</h3>
 <ul>
 <li>The plan follows <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>:
 MCP is one channel of several. The next milestone is one task under
@@ -2334,7 +3221,7 @@ release gate counted a pull request run and could be passed by a tag named
 another account owned; and a stateful listener kept any number of sessions
 open. <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-13">Added</h3>
+<h3 id="added-14">Added</h3>
 <ul>
 <li><code>examples/evidence-report -state &lt;dir&gt;</code> follows a trail one export after
 another and raises local alerts: a JSON line each, appended to
@@ -2379,7 +3266,7 @@ refuses the key. <code>/metrics</code> carries
 <li><code>guardana-control policy explain</code> prints a <code>clock</code> line: <code>usable</code>, or why
 the clock stopped the decision.</li>
 </ul>
-<h3 id="changed-13">Changed</h3>
+<h3 id="changed-14">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> a plane's configuration needs five more keys:
@@ -2546,7 +3433,7 @@ refusal printed a header credential; and some MCP clients refused the plane's
 answers as schema errors. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-14">Added</h3>
+<h3 id="added-15">Added</h3>
 <ul>
 <li><code>guardana-control policy explain &lt;case&gt;</code> decides one case as <code>policy test</code>
 does and says how: the decision's verdict, action, mode, policy digest and
@@ -2606,7 +3493,7 @@ plane without <code>runs.dir</code> behaves as before. A stdio plane no longer w
 start lines into the protocol stream.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-15">Added</h3>
+<h3 id="added-16">Added</h3>
 <ul>
 <li>Runs an operator opens
 (<a href="/docs/adr/0034-a-run-the-operator-opens-has-an-identity-of-its-own">ADR-0034</a>):
@@ -2619,7 +3506,7 @@ restart, and a held call resumes only from its own run. A refused token is
 answered with HTTP 401 or the JSON-RPC error <code>-31102</code>, and the refusals are
 counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
 </ul>
-<h3 id="changed-14">Changed</h3>
+<h3 id="changed-15">Changed</h3>
 <ul>
 <li>The release job waits for a maintainer to approve it in the <code>release</code>
 environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
@@ -2641,7 +3528,7 @@ are a demo archive that runs without Go, an evidence export another program
 resumes by cursor, and the documentation on the website.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="changed-15">Changed</h3>
+<h3 id="changed-16">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
@@ -2652,7 +3539,7 @@ default (<a href="/docs/adr/0032-the-enforcement-mode-has-no-default">ADR-0032</
 <code>dev --decision-point=silent</code>, which the old command lacks and now needs.
 <code>dev</code> refuses a system without process groups before it starts anything.</li>
 </ul>
-<h3 id="added-16">Added</h3>
+<h3 id="added-17">Added</h3>
 <ul>
 <li>A website for <code>control.guardana.dev</code> in <code>site/</code>: one static page with
 no script and nothing loaded from another host, whose diagrams
@@ -2713,7 +3600,7 @@ the gateway beside the archives, and pages that say what the plane
 protects, what it records and which failures it survives.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="added-17">Added</h3>
+<h3 id="added-18">Added</h3>
 <ul>
 <li>Reason code <code>APPROVAL_STATE_UNKNOWN</code> (44, <code>INDETERMINATE</code>): a lost hold
 whose approval the plane could not read or trust closes with it, where
@@ -2739,7 +3626,7 @@ and where it stops; what a record holds, where it goes and how long it
 stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
 <a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
 </ul>
-<h3 id="changed-16">Changed</h3>
+<h3 id="changed-17">Changed</h3>
 <ul>
 <li>A stdio upstream no longer inherits the plane's environment. It gets
 <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the
@@ -2780,7 +3667,7 @@ Such an answer could be read as refused or as unavailable instead.</li>
 <p>The first public release. <a href="/docs/status">docs/status.md</a> says what is
 <code>implemented</code> and what is <code>experimental</code>. Nothing here is a security boundary
 yet.</p>
-<h3 id="added-18">Added</h3>
+<h3 id="added-19">Added</h3>
 <ul>
 <li>Wire contracts, frozen at <code>1.0</code>: eight protobuf files for the action
 envelope, the decision, approvals, results, events, findings, policy bundles
@@ -2845,7 +3732,10 @@ independence of this project from Guardana
 </ul>
 <h2>Guides</h2><ul>
 <li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
 <li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
 <li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
 <li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
 <li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
@@ -2857,11 +3747,13 @@ independence of this project from Guardana
 <li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
 <li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
 <li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
 <li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
 <li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
 <li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
 </ul>
 <h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
 <li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
 <li><a href="/docs/concepts/architecture">Architecture</a></li>
 <li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
@@ -2877,6 +3769,7 @@ independence of this project from Guardana
 <li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
 </ul>
 <h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
 <li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
 <li><a href="/docs/reference/channels">Channels</a></li>
 <li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
@@ -2891,11 +3784,15 @@ independence of this project from Guardana
 <li><a href="/docs/reference/metrics">Metrics</a></li>
 <li><a href="/docs/reference/obligations">Obligations</a></li>
 <li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
 <li><a href="/docs/reference/policy-explain">Policy explain</a></li>
 <li><a href="/docs/reference/policy-format">Policy document format</a></li>
 <li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
 <li><a href="/docs/reference/reaction">Reaction</a></li>
 <li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
 <li><a href="/docs/reference/run-view">Run view</a></li>
 <li><a href="/docs/reference/runs">Runs</a></li>
 <li><a href="/docs/reference/scenario-format">Scenario format</a></li>
@@ -2930,7 +3827,7 @@ independence of this project from Guardana
 </nav>
 </div>
 <footer class="ft"><div class="w">
-  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p></div>
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
   <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
   <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
   <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>

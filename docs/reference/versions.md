@@ -34,6 +34,8 @@ version. [status.md](../status.md) is the inventory.
 | Floor directories (`schema_version`) | `1.0` | `1.x` | `experimental` | [cli.md](cli.md#guardana-control) |
 | State backup manifest (`schema_version`) | `0.2` | `0.x` | `experimental` | [back up and restore a plane](../guides/back-up-and-restore-a-plane.md#what-a-backup-holds) |
 | Scenario (`kind`) | — | `agent-scenario/v1alpha1` | `experimental` | [scenario-format.md](scenario-format.md#the-document) |
+| Attempt manifest (`kind`) | — | `attempt-manifest/v1alpha1` | `experimental` | [attempt-format.md](attempt-format.md#the-manifest) |
+| Attempt report (`kind`) | `attempt-report/v1alpha1` | — | `experimental` | [attempt-format.md](attempt-format.md#the-report) |
 | Pause file (`schema_version`) | `2`, `4` | `1`, `2`, `3`, `4` | `experimental` | [pausing calls](../concepts/enforcement-modes.md#pausing-calls) |
 | Approvals directory (`schema_version`) | `2.1` | `2.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#what-is-held-and-by-whom) |
 | Hold journal (`schema_version`) | `1.0` | `1.x` | `experimental` | [approvals](../concepts/approvals-and-the-held-call.md#a-hold-the-plane-loses) |
@@ -58,6 +60,8 @@ version. [status.md](../status.md) is the inventory.
 | Stop list (`version`) | `1.0`, `3.0` | `1.0`, `2.0`, `3.0` | `experimental` | [contracts.md](../contracts.md#the-stop-list) |
 | Lift (`kind`, `version`) | `reaction-lift/v1alpha1`, `1.0`, `reaction-lift/v1alpha3` | `reaction-lift/v1alpha1`, `1.0`, `reaction-lift/v1alpha2`, `reaction-lift/v1alpha3` | `experimental` | [contracts.md](../contracts.md#the-lift) |
 | Health answer (`schema`) | `3` | — | `experimental` | [run the gateway](../guides/run-the-gateway.md#6-read-the-health) |
+| Policy comparison report (`kind`) | `policy-comparison/v1alpha1` | — | `experimental` | [policy-compare.md](policy-compare.md#the-report) |
+| Policy case labels (`kind`) | — | `policy-case-labels/v1alpha1` | `experimental` | [policy-compare.md](policy-compare.md#the-labels-file) |
 
 The gateway's configuration file and a `policy test` case carry no version.
 Each refuses a key it does not know, so a file that names a key a later
@@ -98,6 +102,26 @@ format 0.18 writes under `signed`
 
 A `1.0` list is not carried into `3.0`: start a new list, and `react` stops
 again the findings that still may stop a run.
+
+## What 0.19 changed
+
+No version above changed. 0.19 refuses some content 0.18 took
+([upgrade a plane](../guides/upgrade-a-plane-from-0-18.md)):
+
+- Route: no route may name `DEADLINE_EXCEEDED`,
+  `DENIED_ACTION_RETRIED_ARGUMENTS` or `DENIED_ACTION_RETRIED_RESOURCE`, at
+  `1` or `2`; `--carry-route` and `stops lift` take them at `1` alone. 0.18
+  reads a route 0.19 signs.
+- Stop list: a carry keeps a stop of those rules at `1` only within what the
+  new route grants. 0.18 refuses such a line and will not start on that list.
+- Finding records: those rules are at `2`, `SUSPECTED` at most, so the same
+  evidence gives a new finding id. 0.18 reads them.
+- Procedure test cases: `project` is required in `run` and each run of
+  `tree`; 0.18 refuses it as a member it does not have.
+- Enforcement API: a `complete`'s `resultHash` is `sha256:` and 64 lower-case
+  hex digits, or absent; 0.18 took any text up to 1 KiB.
+- Configuration file: a block written twice or a key holding a `.` is
+  refused; 0.18 merged or read them.
 
 ## Reading files an older release wrote
 
