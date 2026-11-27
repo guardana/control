@@ -20,6 +20,11 @@ Amended by [ADR-0082](0082-a-signed-document-names-its-plane-and-a-signed-plane-
 `plane_id`, which a restore compares beside the tenant and project. A `0.1`
 manifest names none; a signed restore of one says `plane not checked`.
 
+Amended by [ADR-0092](0092-the-observation-and-finding-logs-are-segment-logs-of-one-project.md):
+the evidence, observation and finding logs stay outside `state backup` and
+are copied with `guardana-gateway log backup` and
+`guardana-gateway log restore`.
+
 ## Context
 
 A plane's authority state lives on disk: floors that keep an older policy,

@@ -25,6 +25,11 @@ each kind may declare, that the descriptor is `0.2` when it carries an egress
 proxy's mapping and a record `0.3` when it carries a connection or refusals by
 reason, and that a connection's id is derived from its content.
 
+Amended by [ADR-0092](0092-the-observation-and-finding-logs-are-segment-logs-of-one-project.md):
+observations are written to a segment log bound to one tenant and project and
+exported at format `0.2`. The single file is still read and exported, never
+written.
+
 ## Context
 
 ADR-0039 fixed what an observation says and left its shape open. The first

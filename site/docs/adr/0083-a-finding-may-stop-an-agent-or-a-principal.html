@@ -139,6 +139,13 @@ which stops one run, and
 causes, under the signed formats of
 <a href="/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures">ADR-0077</a>
 and <a href="/docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant">ADR-0082</a>.</p>
+<p>Amended by <a href="/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project">ADR-0089</a>:
+a <code>reaction-route/v1alpha4</code> route takes agent and principal scopes outside
+<code>signed</code> too.</p>
+<p>Amended by <a href="/docs/adr/0090-a-listener-authenticator-names-the-principal-a-stop-and-a-pause-match">ADR-0090</a>:
+with a <code>token_file</code> listener authenticator, a principal stop and a principal
+pause match the principal the listener authenticates. A call with no
+authenticated principal reads an active principal stop as unknown.</p>
 <h2 id="context">Context</h2>
 <p>A confirmed finding stops the run it is about. Some findings describe the
 actor, not the task: an agent that retries denied calls does so in its next
