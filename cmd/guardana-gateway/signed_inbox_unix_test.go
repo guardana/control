@@ -29,7 +29,18 @@ import (
 // alone.
 func signedHoldingPlane(t *testing.T) (tree, *plane) {
 	t.Helper()
-	tr := signedPlaneTree(t, "roster-a", []ed25519.PublicKey{signedTestPublic("alice")}, "roster-a")
+	return signedHoldingPlaneOf(t, "alice")
+}
+
+// signedHoldingPlaneOf is signedHoldingPlane over a roster in which each of
+// operators operates acme/orders.
+func signedHoldingPlaneOf(t *testing.T, operators ...string) (tree, *plane) {
+	t.Helper()
+	keys := make([]ed25519.PublicKey, 0, len(operators))
+	for _, name := range operators {
+		keys = append(keys, signedTestPublic(name))
+	}
+	tr := signedPlaneTree(t, "roster-a", keys, "roster-a")
 	writeBundle(t, filepath.Join(tr.dir, "holding.bundle"), holdingDocument)
 	writeStatement(t, filepath.Join(tr.dir, "policy.statement"), filepath.Join(tr.dir, "holding.bundle"), time.Now().Truncate(time.Second))
 	raw, err := os.ReadFile(tr.config)
@@ -50,28 +61,54 @@ func signedHoldingPlane(t *testing.T) (tree, *plane) {
 // label, as an operator's command would.
 func fileAnswer(t *testing.T, tr tree, held gateway.Disposition, label string) {
 	t.Helper()
-	body, err := approvals.MarshalAnswer(approvals.Answer{
-		Alg: "ed25519", KeyID: policykey.KeyID(signedTestPublic("alice")), Tenant: "acme", Project: "orders",
+	fileSigned(t, tr, held.Pending.ApprovalID+"."+label+".answer", "alice", "alice", answerOf(held, "alice", approvals.DecisionApprove))
+}
+
+// answerOf is name's answer of decision to the held call.
+func answerOf(held gateway.Disposition, name, decision string) approvals.Answer {
+	return approvals.Answer{
+		Alg: "ed25519", KeyID: policykey.KeyID(signedTestPublic(name)), Tenant: "acme", Project: "orders",
 		RequestID: "req-hold-1", ApprovalID: held.Pending.ApprovalID, ActionDigest: held.Pending.ActionDigest,
-		BundleDigest: held.Decision.GetPolicyBundleDigest(), Decision: approvals.DecisionApprove, DecidedAt: time.Now().UTC(),
-	})
+		BundleDigest: held.Decision.GetPolicyBundleDigest(), Decision: decision, DecidedAt: time.Now().UTC(),
+	}
+}
+
+// fileSigned writes a into the inbox under name, signed by signer's key under
+// a signature naming keyOf's key id.
+func fileSigned(t *testing.T, tr tree, name, signer, keyOf string, a approvals.Answer) {
+	t.Helper()
+	body, err := approvals.MarshalAnswer(a)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sig, err := bundle.SignBytesAs(operators.AnswerPayloadType, body, signedTestKey("alice"))
+	fileEnvelope(t, tr, name, signer, keyOf, body)
+}
+
+func fileEnvelope(t *testing.T, tr tree, name, signer, keyOf string, body []byte) {
+	t.Helper()
+	sig, err := bundle.SignBytesAs(operators.AnswerPayloadType, body, signedTestKey(signer))
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw, err := inbox.MarshalAnswerFile(policy.StatementEnvelope{PayloadType: operators.AnswerPayloadType, Payload: body,
-		Signatures: []policy.StatementSignature{{KeyID: policykey.KeyID(signedTestPublic("alice")), Signature: sig}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	name, err := inbox.AnswerFileName(held.Pending.ApprovalID, label)
+		Signatures: []policy.StatementSignature{{KeyID: policykey.KeyID(signedTestPublic(keyOf)), Signature: sig}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(tr.dir, "inbox", name), raw)
+}
+
+// aliceLabel is the label of alice's i-th answer to one approval: her
+// approval under its own label and each fresh one, then her rejection.
+func aliceLabel(i int) string {
+	base := policykey.KeyID(signedTestPublic("alice")) + "-" + approvals.DecisionApprove
+	switch {
+	case i == 0:
+		return base
+	case i < inbox.MaxAnswersPerApproval:
+		return fmt.Sprintf("%s-%d", base, i+1)
+	}
+	return policykey.KeyID(signedTestPublic("alice")) + "-" + approvals.DecisionReject
 }
 
 // TestASignedPlaneReadsItsInbox: alice's one answer in the inbox runs the
@@ -106,7 +143,7 @@ func TestASignedPlaneReadsItsInbox(t *testing.T) {
 				t.Fatalf("the first call is %v, want a hold", held.Action)
 			}
 			for i := range c.files {
-				fileAnswer(t, tr, held, fmt.Sprintf("alice%02d", i))
+				fileAnswer(t, tr, held, aliceLabel(i))
 			}
 			if c.spoil != nil {
 				c.spoil(tr)

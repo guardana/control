@@ -64,12 +64,12 @@ var _ gateway.ApprovalAuthority = (*inboxAuthority)(nil)
 func (a *inboxAuthority) Answers(ctx context.Context, approvalID string) gateway.AnswerBatch {
 	batch, err := a.inbox.Read(ctx, approvalID)
 	switch {
-	case err != nil, batch.Unjudged:
+	case err != nil:
 		return gateway.AnswerBatch{}
 	case batch.Truncated:
 		return gateway.AnswerBatch{State: gateway.BatchTruncated}
 	}
-	return gateway.AnswerBatch{State: gateway.BatchComplete, Signed: batch.Envelopes}
+	return gateway.AnswerBatch{State: gateway.BatchComplete, Signed: batch.Envelopes, Unjudged: batch.Unjudged}
 }
 
 func (a *inboxAuthority) Status(context.Context) gateway.AuthorityStatus {

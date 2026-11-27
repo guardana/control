@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +46,7 @@ const (
 	InboxTooLarge      = "too_large"
 	InboxMalformed     = "malformed"
 	InboxOtherApproval = "other_approval"
+	InboxMisnamed      = "misnamed"
 	InboxUnreadable    = "unreadable"
 	InboxTruncated     = "truncated"
 	InboxUnremoved     = "unremoved"
@@ -62,12 +64,14 @@ const ErrInboxOwner Error = "inbox: the inbox is not owned by this process's acc
 
 // Inbox is the directory operators file signed answers in, as the plane
 // reads it. Every file in it is untrusted: the plane authenticates each
-// answer itself. A name this package does not write, and a file whose body
-// names another approval, are left out alone and counted. A file named for
-// the approval that cannot be read as an answer, because it is not a regular
-// file, cannot be read, is too large or is no envelope, makes the batch
-// unjudged: it may be the rejection that wins. A directory past a bound is
-// read as truncated.
+// answer itself. A name this package does not write, of no approval the read
+// asks about, is left out alone and counted. A file named for the approval,
+// its id compared without case, that is not exactly the name its own answer
+// takes, or that cannot be read as an answer to the approval, because it is
+// not a regular file, cannot be read, is too large, is no envelope or names
+// another approval, makes the batch unjudged: it may stand where the
+// rejection that wins was refused its name. A directory past a bound is read
+// as truncated.
 //
 // The documented shape is a directory of the operators' group, writable by
 // that group and sticky, so an operator removes only their own answers.
@@ -140,7 +144,7 @@ func checkOwned(info fs.FileInfo) error {
 
 // Batch is what one read of the inbox found for an approval: the
 // envelopes, whether a bound stopped the read, and whether a file named for
-// the approval could not be read as an answer.
+// the approval could not be judged as an answer to it.
 type Batch struct {
 	Envelopes []policy.StatementEnvelope
 	Truncated bool
@@ -159,6 +163,20 @@ func AnswerFileName(approvalID, label string) (string, error) {
 		return "", fmt.Errorf("%w: the label is not 1 to %d letters, digits, _ or -", approvals.ErrRecordName, MaxAnswerLabelBytes)
 	}
 	return approvalID + "." + label + answerSuffix, nil
+}
+
+// AnswerLabels is every label an answer of a may be filed under, in the
+// order an operator tries them: its key id and decision, then that with "-2"
+// up to "-MaxAnswersPerApproval", for when an account that may write the
+// inbox took the names before it.
+func AnswerLabels(a approvals.Answer) []string {
+	base := approvals.AnswerLabel(a)
+	out := make([]string, 0, MaxAnswersPerApproval)
+	out = append(out, base)
+	for n := 2; n <= MaxAnswersPerApproval; n++ {
+		out = append(out, base+"-"+strconv.Itoa(n))
+	}
+	return out
 }
 
 // cutAnswerName splits an answer file's name into its approval id and its
@@ -191,11 +209,11 @@ func (in *Inbox) Read(ctx context.Context, approvalID string) (Batch, error) {
 	if err := in.judge(); err != nil {
 		return Batch{}, err
 	}
-	names, truncated, err := in.list(approvalID)
+	names, misnamed, truncated, err := in.list(approvalID)
 	if err != nil {
 		return Batch{}, err
 	}
-	out := Batch{Truncated: truncated}
+	out := Batch{Truncated: truncated, Unjudged: misnamed}
 	for _, name := range names {
 		env, ok, unjudged := in.readAnswer(name, approvalID)
 		if ok {
@@ -209,35 +227,41 @@ func (in *Inbox) Read(ctx context.Context, approvalID string) (Batch, error) {
 	return out, nil
 }
 
-// list names the files of approvalID, sorted. A name this package does not
-// write is counted and left out; more than MaxInboxEntries names, or more
-// than MaxAnswersPerApproval of approvalID, is truncated.
-func (in *Inbox) list(approvalID string) ([]string, bool, error) {
+// list names the files of approvalID, sorted. A name whose approval id is
+// approvalID compared without case, but that is not an answer file name of
+// approvalID as spelled, is counted and makes misnamed true: a volume that
+// folds case may take it as the name an answer needs. Any other name this
+// package does not write is counted and left out. More than MaxInboxEntries
+// names, or more than MaxAnswersPerApproval of approvalID, is truncated.
+func (in *Inbox) list(approvalID string) (names []string, misnamed, truncated bool, err error) {
 	d, err := in.root.Open(".")
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
 	entries, readErr := d.ReadDir(MaxInboxEntries + 1)
 	if err := errors.Join(ignoreEOF(readErr), d.Close()); err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
-	truncated := len(entries) > MaxInboxEntries
-	var names []string
+	truncated = len(entries) > MaxInboxEntries
 	for _, e := range entries[:min(len(entries), MaxInboxEntries)] {
 		id, label, ok := cutAnswerName(e.Name())
-		if !ok || approvals.CheckApprovalID(id) != nil || !answerLabel(label) {
-			in.counts[InboxForeignName]++
-			continue
-		}
-		if id == approvalID {
+		written := ok && approvals.CheckApprovalID(id) == nil && answerLabel(label)
+		stem, _, dotted := strings.Cut(e.Name(), ".")
+		switch {
+		case written && id == approvalID:
 			names = append(names, e.Name())
+		case dotted && strings.EqualFold(stem, approvalID):
+			in.counts[InboxMisnamed]++
+			misnamed = true
+		case !written:
+			in.counts[InboxForeignName]++
 		}
 	}
 	slices.Sort(names)
 	if len(names) > MaxAnswersPerApproval {
 		names, truncated = names[:MaxAnswersPerApproval], true
 	}
-	return names, truncated, nil
+	return names, misnamed, truncated, nil
 }
 
 func ignoreEOF(err error) error {
@@ -247,15 +271,17 @@ func ignoreEOF(err error) error {
 	return err
 }
 
-// readAnswer reads one answer file. It counts one that is not a regular
-// file, cannot be read, is too large or is no envelope, and reports it
-// unjudged; it counts and leaves out alone one whose body names another
-// approval. The body is read only for its approvalId here; it is judged after
-// its signature verifies, by the plane.
+// readAnswer reads one answer file and reports unjudged, counted under its
+// cause, one that is not a regular file, cannot be read, is too large, is no
+// envelope of an answer, names another approval, or is not under a label
+// its own answer takes, of the key its one signature and its body name. The
+// body is read unverified here, only to hold the name to it: the plane's
+// authenticator then holds the body's key to the signing key, so a file
+// that authenticates sits under its signer's own label.
 func (in *Inbox) readAnswer(name, approvalID string) (_ policy.StatementEnvelope, ok, unjudged bool) {
 	refuse := func(cause string) (policy.StatementEnvelope, bool, bool) {
 		in.counts[cause]++
-		return policy.StatementEnvelope{}, false, cause != InboxOtherApproval
+		return policy.StatementEnvelope{}, false, true
 	}
 	info, err := in.root.Lstat(name)
 	switch {
@@ -283,10 +309,29 @@ func (in *Inbox) readAnswer(name, approvalID string) (_ policy.StatementEnvelope
 	if err != nil {
 		return refuse(InboxMalformed)
 	}
-	if named, err := approvals.ReadAnswer(env.Payload); err == nil && named.ApprovalID != approvalID {
-		return refuse(InboxOtherApproval)
+	if cause := unbound(env, name, approvalID); cause != "" {
+		return refuse(cause)
 	}
 	return env, true, false
+}
+
+// unbound is the cause env, filed under name, is not an answer to approvalID
+// under a label its own answer takes, of the key its one signature and its
+// body name, and "" where it is.
+func unbound(env policy.StatementEnvelope, name, approvalID string) string {
+	named, err := approvals.ReadAnswer(env.Payload)
+	switch {
+	case err != nil:
+		return InboxMalformed
+	case named.ApprovalID != approvalID:
+		return InboxOtherApproval
+	case len(env.Signatures) != 1 || env.Signatures[0].KeyID != named.KeyID:
+		return InboxMisnamed
+	}
+	if _, label, _ := cutAnswerName(name); !slices.Contains(AnswerLabels(named), label) {
+		return InboxMisnamed
+	}
+	return ""
 }
 
 // Counts is how often each cause left a file out, or truncated a read.
