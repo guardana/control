@@ -236,7 +236,7 @@ guardana-control policy renew --key ../../keys/freshness/signing.key --bundle st
     --bundle-public-key ../../keys/bundle/signing.pub --floor ../../keys/signer-floors --out state/policy.statement
 guardana-control policy state init --kind plane --bundle-id refund-supervision state/floors
 </code></pre>
-<p>In <code>plane.yaml</code>, fill in the bundle and freshness key IDs and public keys. Replace <code>/absolute/path/to/collect.sock</code> with the full path to <code>$WORK/examples/refund-supervision/state/collect.sock</code>. Run <code>id -u</code> as the collector account, and set <code>COLLECTOR_UID_FROM_ID</code> to that number. Create the credential and replace <code>COLLECTOR_CREDENTIAL_FROM_FILE</code> with its contents.</p>
+<p>In <code>plane.yaml</code>, fill in the bundle and freshness key IDs and public keys. Replace <code>/absolute/path/to/collect.sock</code> with the full path to <code>$WORK/examples/refund-supervision/state/collect.sock</code>. Run <code>id -u</code> as the collector account, and set <code>COLLECTOR_UID_FROM_ID</code> to that number. Create the credential:</p>
 <pre><code class="language-sh">(umask 077 &amp;&amp; od -An -N32 -tx1 /dev/urandom | tr -d &#39; \n&#39; &gt; state/collector.credential)
 </code></pre>
 <p>In <code>route.json</code>, replace <code>LIFT_PUBLIC_KEY_FROM_KEYGEN</code> with the <code>keys/lift</code> public key. For stops (<code>experimental</code>), sign the route and initialize its floor and stop list.</p>
@@ -254,10 +254,12 @@ guardana-control stops init --route state/route.signed.json --public-key state/r
 </code></pre>
 <p><code>runs open</code> (<code>experimental</code>) prints <code>run_id</code>, <code>root</code>, <code>expires_at</code> and <code>token</code> (shown only once). Save <code>run_id</code> as <code>RUN_ID</code> and <code>token</code> as <code>TOKEN</code>.</p>
 <p>Check the configuration with <code>doctor</code> (<code>experimental</code>).</p>
-<pre><code class="language-sh">guardana-gateway doctor --config plane.yaml
+<pre><code class="language-sh">export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat state/collector.credential)&#34;
+guardana-gateway doctor --config plane.yaml
 </code></pre>
 <p>When every check says <code>ok</code>, start the plane in another terminal in the example directory.</p>
-<pre><code class="language-sh">guardana-gateway run --config plane.yaml
+<pre><code class="language-sh">export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat state/collector.credential)&#34;
+guardana-gateway run --config plane.yaml
 </code></pre>
 <p>Replace the agent's direct server entries with <code>http://127.0.0.1:8080/mcp</code>. Send <code>Run-Token: &lt;token&gt;</code> with the value of <code>TOKEN</code> on every HTTP request. <a href="/docs/guides/connect-an-existing-mcp-setup#7-point-the-client-at-the-plane">Connect the client</a></p>
 <h3 id="5-test-the-calls">5. Test the calls</h3>
