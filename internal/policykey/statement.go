@@ -321,12 +321,18 @@ func writeStatement(ctx context.Context, path string, env policy.StatementEnvelo
 // judged and before the statement takes its place.
 var beforeStatementReplaced = func() {}
 
+// afterStatementOutLstat runs, in a test, between the look at the name and
+// the open of what stands there.
+var afterStatementOutLstat = func() {}
+
 // checkStatementOut refuses a name in root that holds anything but a
 // statement, and returns the entry it judged, nil where none stands. It
 // judges through the handle the replace goes through, so a directory swapped
 // in after the judgement receives nothing; the file judged is the one
 // opened, which neither follows a link nor waits on a pipe, and the replace
-// takes that entry's place only.
+// takes that entry's place only. An entry replaced between the look and the
+// open is refused with files.ErrNotJudged and files.ErrNothingWritten, so a
+// caller may judge the name again.
 func checkStatementOut(root *os.Root, name string) (fs.FileInfo, error) {
 	info, err := root.Lstat(name)
 	switch {
@@ -337,6 +343,7 @@ func checkStatementOut(root *os.Root, name string) (fs.FileInfo, error) {
 	case !info.Mode().IsRegular():
 		return nil, fmt.Errorf("%s: %w", name, ErrStatementOut)
 	}
+	afterStatementOutLstat()
 	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
@@ -347,7 +354,7 @@ func checkStatementOut(root *os.Root, name string) (fs.FileInfo, error) {
 		return nil, err
 	}
 	if !held.Mode().IsRegular() || !os.SameFile(info, held) {
-		return nil, fmt.Errorf("%s: %w: it changed while it was judged", name, ErrStatementOut)
+		return nil, fmt.Errorf("%s: %w: %w", name, files.ErrNotJudged, files.ErrNothingWritten)
 	}
 	existing, err := io.ReadAll(io.LimitReader(f, MaxStatementFileBytes+1))
 	if err != nil {
