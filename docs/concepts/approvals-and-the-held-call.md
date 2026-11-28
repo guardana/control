@@ -73,12 +73,12 @@ group or the world may write it, and each record is written `0600`.
 
 **Under `signed`, only a roster operator granted the call's project
 approves**, by a signed `approval-answer/v1alpha1` in `approvals.inbox_dir`
-that names the hold member for member, signed by `approvals approve --key`;
-a claim for a signed hold is refused, and the console answers none. Any
-valid rejection wins; an answer
-the plane could not judge leaves the call `INDETERMINATE`. The plane reads
-and prunes only an inbox its own account owns: under the sticky bit the
-owner may remove any answer, a rejection among them
+that names the hold member for member, signed by `approvals approve --key`; a
+claim for a signed hold is refused, and the console answers none. Any valid
+rejection wins over files the plane could not judge; without one, such a file
+leaves the call `INDETERMINATE`. The plane reads and prunes only an inbox its
+own account owns: under the sticky bit the owner may remove any answer, a
+rejection among them
 ([ADR-0073](../adr/0073-an-approval-counts-only-as-the-plane-judges-it.md)).
 
 A writer of that directory chooses nothing else. A record carries no trail,

@@ -81,7 +81,12 @@ Flags come first. `--key` signs from the plane's record of the hold, read
 through the operators' group (`0750` directory, `0640` files), and files
 `<approval id>.<key id>-<decision>.answer`, mode `0644`, never replacing one;
 run as the plane's account it warns. `--approver-id` is a claim, refused for
-a signed hold.
+a signed hold. If another account holds the file, it files under the next free
+label of the same key and decision, from `-2` through `-16`. It prints both
+names and the owner UID on stderr, prints the filed path on stdout and exits 0.
+If this account owns the file, it refuses "is this account's own, filed
+earlier". With all 16 names taken, it refuses, naming the first name and its
+owner.
 
 `approvals list` prints, for each record, its state, both digests and the
 readable fields of the projection the plane wrote at hold time, not bound

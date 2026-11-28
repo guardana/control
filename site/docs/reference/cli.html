@@ -213,7 +213,12 @@ refuse on a platform without permission bits
 through the operators' group (<code>0750</code> directory, <code>0640</code> files), and files
 <code>&lt;approval id&gt;.&lt;key id&gt;-&lt;decision&gt;.answer</code>, mode <code>0644</code>, never replacing one;
 run as the plane's account it warns. <code>--approver-id</code> is a claim, refused for
-a signed hold.</p>
+a signed hold. If another account holds the file, it files under the next free
+label of the same key and decision, from <code>-2</code> through <code>-16</code>. It prints both
+names and the owner UID on stderr, prints the filed path on stdout and exits 0.
+If this account owns the file, it refuses &quot;is this account's own, filed
+earlier&quot;. With all 16 names taken, it refuses, naming the first name and its
+owner.</p>
 <p><code>approvals list</code> prints, for each record, its state, both digests and the
 readable fields of the projection the plane wrote at hold time, not bound
 to the digest; the listing says so. An incomplete listing exits 1 naming

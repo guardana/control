@@ -11,6 +11,33 @@ verify one.
 
 ## [Unreleased]
 
+### Security
+
+- Under `approvals.authority: signed`, the plane reads the part of an inbox
+  name before the first `.` without regard to ASCII letter case. A name
+  holding a byte outside ASCII is read for every approval. A file the
+  plane cannot hold to its name makes the batch unjudged. An inbox writer
+  can keep a held call `INDETERMINATE`. A non-ASCII name can do so for all
+  holds, as an inbox past 4096 names already does. Before, an inbox writer
+  could take another operator's rejection name with another approval's body
+  or junk, or vary case on a folding volume, and the sticky bit kept the
+  operator from removing it, letting another approval run the call.
+
+### Changed
+
+- An unauthenticated answer makes the batch unjudged. A valid rejection in
+  the batch wins. Without one the hold stands, the call is `INDETERMINATE`,
+  and a reconciliation closes it `APPROVAL_STATE_UNKNOWN`. The inbox counts
+  cause `misnamed`; `doctor`, `/healthz` and
+  `pipeline_answers_refused_total{cause}` show `batch_unjudged`. When another
+  account holds the first name, `approvals approve|reject --key` uses the next
+  free label for the same key and decision, from `-2` through `-16`. It prints
+  `<taken name> is held by another account's file (owned by uid N); the answer
+  is filed as <new name> instead` on stderr, prints the filed path on stdout
+  and exits 0. It refuses if one of those files is this account's own, or if
+  all 16 names are taken. Before, unauthenticated answers, including answers from revoked
+  keys, were left out and the command refused a taken name.
+
 ## [0.19.1] - 2026-11-27
 
 Upgrading from 0.18 changes requirements across several tools, and more under

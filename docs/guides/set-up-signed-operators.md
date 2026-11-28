@@ -135,7 +135,10 @@ guardana-control approvals approve --key op/signing.key --inbox /var/lib/guardan
 answer counts only from a roster operator granted `operate` for the call's
 tenant and project; `--approver-id` is refused for a signed hold, and the
 command warns when run as the plane's account. The agent's identical retry
-then runs ([approvals](../concepts/approvals-and-the-held-call.md)).
+then runs ([approvals](../concepts/approvals-and-the-held-call.md)). If another
+account owns the file at the first name, the command files the answer under
+the next free label for the same key and decision, from `-2` through `-16`.
+Look at the file named on stderr.
 
 ### 5. Pause a tool
 
@@ -170,10 +173,13 @@ time it judges a signature and takes a higher serial. Once the roster it
 holds has expired and no newer one is in place, no operator's signature
 counts.
 
-To revoke a key, leave its entry out and sign at the next serial. A plane
-that never reads the new roster, because it is not installed or is withheld,
-trusts the old one until it expires: a short `--valid-for` bounds how long a
-revoked key's signature still counts.
+To revoke a key, leave its entry out and sign at the next serial. A plane that
+never reads the new roster, because it is not installed or is withheld, trusts
+the old one until it expires: a short `--valid-for` bounds how long a revoked
+key's signature still counts. Once the plane reads the new roster, an answer
+signed by an omitted key holds its call `INDETERMINATE` until a valid
+rejection, the hold's expiry or file removal. Under the sticky bit, only the
+file's owner, the plane's account or root can remove it.
 
 ## Verify
 
