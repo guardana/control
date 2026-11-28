@@ -7,10 +7,9 @@ covers: [cmd/guardana-control/**, cmd/guardana-gateway/**, internal/policykey/**
 
 # Command line
 
-Two binaries, built from the repository root with `go build ./cmd/<name>`;
-[status.md](../status.md) says what each does. Each fenced block below
-is the help its binary prints on a usage error, byte for byte, which the test
-its marker names diffs against the binary.
+Build both binaries from the repository root with `go build ./cmd/<name>`.
+[status.md](../status.md) describes each. The test named in each marker diffs
+the fenced block against the binary's exact help on a usage error.
 
 | Exit status | Means |
 | --- | --- |
@@ -21,16 +20,14 @@ its marker names diffs against the binary.
 Without arguments either binary prints its version and one status line on
 stdout and exits 0.
 
-Every command of either binary refuses an argument holding a PEM marker, the
-start of a key file's body line, a line break or another control character
-before it reads a flag, with one line that does not repeat the argument and
-status 2: such an argument is key text where a path belongs, or text that
-would break the line reporting it. Only the body line's unbroken start is
-matched, so a spaced or partial one passes. Key text read from a setting, a
-file, the environment or a request is printed as `[key text withheld]`,
-keeping the rest, logs included.
-A message holding a control character, a line or paragraph separator, a
-format character or bytes that are not UTF-8 is printed as a quoted Go string.
+Before reading flags, every command of either binary refuses an argument
+holding a PEM marker, the unbroken start of a key file's body line, a line
+break or another control character: such an argument is key text where a path
+belongs, or would break the reporting line. Spaced or partial body line starts
+pass. A refusal exits 2 with one line, omitting the argument. Key text from a
+setting, file, environment or request prints as `[key text withheld]`, keeping
+the rest, logs included. Messages with control characters, line or paragraph
+separators, format characters or invalid UTF-8 print as quoted Go strings.
 
 ## guardana-control
 
@@ -48,13 +45,13 @@ state init` and `reset` make and lower floors
 a reset reaches a running plane's clock check only when it restarts.
 `state backup|restore`: [the guide](../guides/back-up-and-restore-a-plane.md).
 
-`policy keygen` creates the directory `--out` names, mode `0700`, and refuses a
-path that exists. Into it go `signing.key`, the private key as one PKCS#8 PEM
-block, mode `0600`, and `signing.pub`, the public key as one line of standard
-base64 and a newline, which `policy.public_key` takes as it is. It prints two lines, `key_id: <id>` and `public_key: <line>`,
-the gateway's `policy` members. The id is `ed25519-` and
-the first 16 hex digits of SHA-256 over the public key's 32 bytes; nothing
-lets an operator choose it.
+`policy keygen` creates a `0700` directory at `--out` and refuses existing
+paths. It writes the private key to `signing.key` as one PKCS#8 PEM block
+(mode `0600`) and the public key to `signing.pub` as one standard base64 line
+with a newline, accepted as-is by `policy.public_key`. It prints two lines,
+`key_id: <id>` and `public_key: <line>`, the gateway's `policy` members. The
+id is `ed25519-` plus the first 16 hex digits of SHA-256 over the public key's
+32 bytes. Operators cannot choose it.
 
 `policy sign` prints one `name: value` line each for `bundle_id`, `version`,
 `serial`, `digest`, `key_id` and `out`, and writes the bundle mode `0644`,
@@ -77,32 +74,32 @@ The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits
 ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
-Flags come first. `--key` signs from the plane's record of the hold, read
-through the operators' group (`0750` directory, `0640` files), and files
-`<approval id>.<key id>-<decision>.answer`, mode `0644`, never replacing one;
-run as the plane's account it warns. `--approver-id` is a claim, refused for
-a signed hold. If another account holds the file, it files under the next free
-label of the same key and decision, from `-2` through `-16`. It prints both
-names and the owner UID on stderr, prints the filed path on stdout and exits 0.
-If this account owns the file, it refuses "is this account's own, filed
-earlier". With all 16 names taken, it refuses, naming the first name and its
-owner.
+Flags come first. `--key` signs from the plane's hold record, read through
+the operators' group (`0750` directory, `0640` files), and files
+`<approval id>.<key id>-<decision>.answer` (mode `0644`) without overwriting.
+It warns when run as the plane's account. `--approver-id` is a claim refused
+for signed holds. If another account holds the file, `--key` files under the
+next free label for the same key and decision (`-2` through `-16`), prints
+both names and the owner UID on stderr and the filed path on stdout, and
+exits 0. It refuses if this account owns that file ("is this account's own,
+filed earlier") or all 16 names are taken (naming the first name and its
+owner).
 
-`approvals list` prints, for each record, its state, both digests and the
-readable fields of the projection the plane wrote at hold time, not bound
-to the digest; the listing says so. An incomplete listing exits 1 naming
-what it could not read. Writing nothing, it lists the plane's directory from
-a signed operator's account.
+`approvals list` reads the plane's directory from a signed operator's
+account without writing. For each record it prints the state, both digests
+and the projection's readable fields from hold time, which the digest does not
+bind; the listing says so. An incomplete listing exits 1 and names what it
+could not read.
 
-A claim is written, exit 0, whether or not a
-plane runs: the record waits for the next
-plane. Where no plane holds the directory they say so on stderr: no held
-call waits for the answer, since a hold does not outlive its plane, and a
-plane that keeps a hold journal records it on that call's trail as too late.
+Writing a claim exits 0 whether or not a plane runs; the record waits for
+the next plane. Where no plane holds the directory, both commands say so on
+stderr: no held call waits for the answer, since a hold does not outlive its
+plane, and a plane with a hold journal records it on that call's trail as too
+late.
 
-Both commands refuse, writing nothing, an approval id that is absent, one
-an approver answered already, one past its expiry, and an approver id or a
-reason over its bound — each on its own line, naming what to do about it.
+Both commands write nothing and refuse absent, already answered or expired
+approval ids and approver ids or reasons over their bounds. One line per
+refusal says what to do.
 
 The `pause` commands write and read the pause file a plane names in
 `pause.file` ([ADR-0019](../adr/0019-an-operator-can-pause-calls.md)).
@@ -239,16 +236,16 @@ needs a higher serial; write access to its floor directory lowers the floor.
 
 ## guardana-gateway
 
-`run` serves one plane from a configuration file and `doctor` checks that
-file without serving: [guides/run-the-gateway.md](../guides/run-the-gateway.md)
-is their page and [configuration.md](configuration.md) lists every key.
-`--config` is required. A key naming a file or
-directory refuses key text, naming the key, never the value. On an interrupt
-or `SIGTERM`, `run` admits no new call, gives admitted ones
-`upstream.call_timeout` plus ten seconds, plus any `pdp.timeout`; an
-`enforce_api` plane waits ten seconds and abandons open executions. Either
-exits 1 when it cut one, lost a closing record or could not close the spool;
-`doctor` when its plane does not close or stdout does not take its report.
+`run` serves one plane from a configuration file; `doctor` checks that file
+without serving. Both require `--config`.
+[guides/run-the-gateway.md](../guides/run-the-gateway.md) is their page and
+[configuration.md](configuration.md) lists every key. File and directory keys
+refuse key text, naming the key, never the value. On interrupt or `SIGTERM`,
+`run` admits no new call, giving admitted calls `upstream.call_timeout`
+plus ten seconds and any `pdp.timeout`. An `enforce_api` plane waits ten
+seconds and abandons open executions. Either exits 1 when it cut a call, lost
+a closing record or could not close the spool; `doctor` exits 1 if its plane
+does not close or stdout refuses its report.
 
 `collect`, `trail` and `prune` read no configuration:
 [guides/watch-a-plane-without-a-collector.md](../guides/watch-a-plane-without-a-collector.md)
