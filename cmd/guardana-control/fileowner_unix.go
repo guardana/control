@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"syscall"
+
+	ondisk "github.com/guardana/control/internal/files"
 )
 
 // ownerText names the account that owns the file at path, as a refusal
@@ -26,9 +28,5 @@ func ownerText(path string) string {
 // file at path, not following a link.
 func ownedByCaller(path string) bool {
 	info, err := os.Lstat(path)
-	if err != nil {
-		return false
-	}
-	st, ok := info.Sys().(*syscall.Stat_t)
-	return ok && uint64(st.Uid) == uint64(os.Geteuid())
+	return err == nil && ondisk.CheckOwnedBy(info, os.Geteuid()) == nil
 }
