@@ -86,6 +86,7 @@ health="127.0.0.1:$(free_port)"
 
 say "step 1: the profile, the policy and the server"
 cp -R "${example}" "${work}/plane"
+chmod 700 "${work}/plane"
 cp "${root}/examples/starter-packs/approval-for-writes/policy.json" "${work}/plane/"
 go -C "${root}/examples/evidence-report" build -o "${work}/plane/bin/" . || die "the report program does not build"
 cd "${work}/plane"
@@ -108,10 +109,9 @@ share="$(cd "${share}" && pwd -P)"
 printf 'read through the plane\n' >"${share}/hello.txt"
 line_of() { sed -n "s/^$1: //p" <<<"$2"; }
 (umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' >collector.credential)
-# The token reaches sed through a script file, never an argument a process
-# listing shows; printf is a builtin, so no process sees it either.
-(umask 077 && printf 's|COLLECTOR_CREDENTIAL_FROM_FILE|%s|\n' "$(<collector.credential)" >credential.sed)
-sed -f credential.sed \
+GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(<collector.credential)"
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION
+sed \
   -e "s|BUNDLE_KEY_ID_FROM_KEYGEN|$(line_of key_id "${bundle_key}")|" \
   -e "s|BUNDLE_PUBLIC_KEY_FROM_KEYGEN|$(line_of public_key "${bundle_key}")|" \
   -e "s|FRESHNESS_KEY_ID_FROM_KEYGEN|$(line_of key_id "${freshness_key}")|" \
@@ -123,10 +123,13 @@ sed -f credential.sed \
   plane.yaml >plane.yaml.filled
 printf '\nhealth:\n  address: %s\n' "${health}" >>plane.yaml.filled
 mv plane.yaml.filled plane.yaml
-rm credential.sed
 if grep -q 'FROM_KEYGEN\|FROM_FILE\|FROM_ID\|/absolute/path' plane.yaml; then
   die "a placeholder is left in plane.yaml"
 fi
+if grep -qiE '^[[:space:]]*(headers|authorization)[[:space:]]*:' plane.yaml; then
+  die "plane.yaml names an export header; the credential belongs in the environment"
+fi
+[[ -n "$(find . -maxdepth 0 -perm 700)" ]] || die "the plane's directory is not mode 0700"
 
 say "step 4: a collector"
 "${gateway}" collect --listen "unix://${work}/plane/collect.sock" --dir trail --tenant local --project files \

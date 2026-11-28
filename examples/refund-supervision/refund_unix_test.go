@@ -177,7 +177,7 @@ func TestARefundRunIsSupervisedAgainstItsProcedure(t *testing.T) {
 	liftKey := tr.makeRoute(t)
 	first, second := tr.openRun(t), tr.openRun(t)
 	runID := first.id
-	plane := start(t, tr.dir, append(environ(), journalVariable+"="+tr.path("journal")), tr.gateway, "run", "--config", "plane.yaml")
+	plane := start(t, tr.dir, append(planeEnviron(), journalVariable+"="+tr.path("journal")), tr.gateway, "run", "--config", "plane.yaml")
 	agents := "http://" + plane.after(t, "listening for agents on ")
 	ra := newAgent(t, agents, first.token)
 	rq := ra.work(t, tr)

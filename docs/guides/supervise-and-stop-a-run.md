@@ -83,8 +83,7 @@ In `plane.yaml`, replace the four `..._FROM_KEYGEN` values with the
 `keys/freshness`, `/absolute/path/to/collect.sock` with
 `$WORK/examples/refund-supervision/state/collect.sock` spelled out, and
 `COLLECTOR_UID_FROM_ID` with what `id -u` prints. Make the collector's
-credential, and replace `COLLECTOR_CREDENTIAL_FROM_FILE` with the content of
-`state/collector.credential`:
+credential:
 
 ```
 (umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > state/collector.credential)
@@ -128,6 +127,7 @@ First open both runs, as step 5 shows. Then check the configuration; every
 check line should begin `ok`:
 
 ```
+$ export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat state/collector.credential)"
 $ guardana-gateway doctor --config plane.yaml
 …
 ok      upstreams     1 upstream(s) answered, 4 tool(s) listed, 4 classified, 0 unclassified
@@ -137,6 +137,7 @@ ok      upstreams     1 upstream(s) answered, 4 tool(s) listed, 4 classified, 0 
 Then start the plane in another terminal:
 
 ```
+$ export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat state/collector.credential)"
 $ guardana-gateway run --config plane.yaml
 …
 listening for agents on 127.0.0.1:8080

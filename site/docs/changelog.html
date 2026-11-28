@@ -153,7 +153,8 @@ operator from removing it, letting another approval run the call.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li>Answers failing authentication (including those signed by a key a newer
+<li>
+<p>Answers failing authentication (including those signed by a key a newer
 roster no longer names) count under cause <code>unauthenticated</code>. A file the
 plane cannot hold to its name (another case, bad label, another approval's
 body) counts <code>misnamed</code> in the inbox, making the batch unjudged
@@ -165,18 +166,61 @@ through <code>-16</code> unless a taken name holds this account's verified answe
 stderr reports <code>&lt;taken&gt; is held by a file that is not this answer (owned by uid N)</code> and the filed name. Earlier, owning the file alone counted as
 &quot;filed earlier&quot;, so hard-linking an earlier answer under the rejection's
 name blocked it. Before, unauthenticated answers, including answers from
-revoked keys, were left out and the command refused a taken name.</li>
+revoked keys, were left out and the command refused a taken name.</p>
+</li>
+<li>
+<p>The guides &quot;Connect an existing MCP setup&quot;, &quot;Supervise and stop a run&quot; and
+&quot;Check a security-testing agent&quot; and the example profiles
+<code>examples/connect-a-filesystem-server/plane.yaml</code> and
+<code>examples/refund-supervision/plane.yaml</code> no longer put the collector's
+credential in <code>plane.yaml</code>, giving it to the plane through the environment
+variable <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code>, set in each terminal
+that runs <code>doctor</code> or <code>run</code> (or in the MCP client's <code>env</code> block when the
+client starts the plane). The connect guide now closes the copied plane
+directory with <code>chmod 700</code> before the collector's socket is made in it. An
+existing copy of either example keeps its <code>export.headers</code> block until you
+remove it; a key the environment sets is refused under <code>approvals.authority: signed</code>. Before, <code>cp -R</code> left <code>plane.yaml</code> readable by every local account
+(mode <code>0644</code> under the usual umask) with the credential in it, and the
+collector's socket in that directory accepted connections from any account, so
+another local account could read the credential and send events the collector
+kept as the plane's evidence. Run <code>chmod 700</code> on the existing plane directory
+and make a new <code>collector.credential</code> (connect guide, step 3), since another
+local account may have read the old one. A signed plane keeps the new
+credential under <code>export.headers</code> in its configuration, which no other account
+should read. Outside <code>approvals.authority: signed</code>, remove <code>export.headers</code>
+and set <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code> from it. Restart the
+collector (<code>guardana-gateway collect</code>) and the plane with it. Treat trail
+events the collector received while the old credential sat in a readable
+<code>plane.yaml</code> as possibly sent by another local account.</p>
+</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
-<li><code>policy renew --out &lt;file&gt;</code> judges <code>--out</code> again if another renew replaces
+<li>
+<p><code>guardana-gateway doctor</code> now fails its <code>upstreams</code> check, in every mode
+(<code>OBSERVE</code> included), when a tool name is listed more than once, within or
+across upstreams. It names each (<code>&lt;name&gt; is listed more than once, so a call to it is unclassified</code>) and counts them on the check line (<code>N tool name(s) listed more than once</code>). Names from withheld definitions print as <code>&lt;withheld name&gt;</code>, here and for unclassified tools, since they may hold the scan's
+configured value. Before, <code>doctor</code> passed the check while the plane treated
+calls to that tool as unclassified.</p>
+</li>
+<li>
+<p><code>policy renew --out &lt;file&gt;</code> judges <code>--out</code> again if another renew replaces
 the file between looking at the path and opening it, as it already did when
 the file changed at other steps. It replaces an older statement, or keeps a
 newer one and says that a newer statement for the bundle id is there, which
 another renew wrote meanwhile. When two runs, each under its own signer floor
 directory, wrote to the same <code>--out</code> at the same moment, one could fail with
 &quot;the path holds something other than a freshness statement ... it changed
-while it was judged&quot;.</li>
+while it was judged&quot;.</p>
+</li>
+</ul>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li>Until 1.0, each release follows a review of the changes since the previous
+release, by a reviewer who did not write them, and a check of the pages those
+changes touch or make suspect. The whole tree is audited once, on the 1.0
+release candidate, instead of before every release
+(<a href="/docs/adr/0052-a-change-is-gated-on-its-pull-request">ADR-0052</a>).</li>
 </ul>
 <h2 id="0191---2026-11-27"><a href="https://github.com/guardana/control/releases/tag/v0.19.1">0.19.1</a> - 2026-11-27</h2>
 <p>Upgrading from 0.18 changes requirements across several tools, and more under
@@ -1050,7 +1094,7 @@ another: a scheduled night whose red then went unreported, or a push to
 the gateway's doctor does not report under. Any key but <code>none</code> passed.</p>
 </li>
 </ul>
-<h3 id="documentation">Documentation</h3>
+<h3 id="documentation-1">Documentation</h3>
 <ul>
 <li>The landing page and the documentation pages share one layout: the same
 header, footer and container at every width, every landing section opening
@@ -1245,7 +1289,7 @@ says so. An OpenTelemetry or egress log import whose source fails with an
 error wrapping <code>io.EOF</code>, or one matching a full read buffer, now fails,
 where it ended as a complete import.</li>
 </ul>
-<h3 id="documentation-1">Documentation</h3>
+<h3 id="documentation-2">Documentation</h3>
 <ul>
 <li>Three reading paths on the documentation index, a shorter first tutorial
 with <a href="/docs/get-started/try-the-rest-of-the-demo">a follow-up</a>, and pages

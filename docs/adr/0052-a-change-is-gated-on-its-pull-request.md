@@ -57,7 +57,22 @@ gates, on the release path, where a failure costs the most.
   not write the changes,
   against the invariants, the roadmap and what the pages claim. A finding is
   verified at its source before it is acted on, and its fix is an ordinary
-  change.
+  change. Until 1.0, the 0.20 amendment below replaces it.
+
+Amended in 0.20: until 1.0, before each release, a reviewer who did not write
+the changes reviews what changed since the previous release (the commits
+between the previous release's tag and the release commit) against the
+invariants, the roadmap and what the pages claim. A second check reads each
+page the range touches or that `make docs-impact` names for the range (the
+Makefile target takes `RANGE=<base>..<head>`), against the code. A finding is
+still verified at its source, and its fix is still an ordinary change. The
+review a pull request needs is unchanged and is the one
+[GOVERNANCE.md](../../GOVERNANCE.md) describes. The whole tree is audited once,
+on the 1.0 release candidate, by a reviewer who wrote none of it. Whole-tree
+audit rounds before 0.19 took most of that release's week, and releases to 1.0
+come about once a week; reviewing each release's range covers what changed, and
+the candidate audit covers the whole. What applies after 1.0 is decided before
+1.0.
 
 ## Security / compatibility impact
 
@@ -68,7 +83,9 @@ Linux. A defect that shows only on macOS is found by the nightly run or by the
 release commit's cold gate, later than before. The checks of a pull request
 still run from its own tree, so a change to a workflow or to the gate is held
 by its review. With one maintainer the admin's own change there has no second
-reviewer and is held by the admin alone, as ADR-0025 already says.
+reviewer and is held by the admin alone, as ADR-0025 already says. Until 1.0,
+a defect in code that no release's range touches is looked for only by the
+whole-tree audit of the 1.0 release candidate.
 
 ## Alternatives considered
 

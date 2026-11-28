@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -146,12 +147,14 @@ func (tr tree) sign(t *testing.T, collector string) {
 		"address: 127.0.0.1:8080": "address: 127.0.0.1:0", "address: 127.0.0.1:8081": "address: 127.0.0.1:0",
 		"endpoint: unix:///absolute/path/to/collect.sock": "endpoint: " + collector,
 		"COLLECTOR_UID_FROM_ID":                           strconv.Itoa(os.Geteuid()),
-		"COLLECTOR_CREDENTIAL_FROM_FILE":                  collectorToken,
 	} {
 		if strings.Count(config, old) != 1 || new == "" {
 			t.Fatalf("plane.yaml holds %q %d times, want once, to put %q in its place", old, strings.Count(config, old), new)
 		}
 		config = strings.Replace(config, old, new, 1)
+	}
+	if strings.Contains(strings.ToLower(config), "authorization") || regexp.MustCompile(`(?mi)^\s*headers\s*:`).MatchString(config) {
+		t.Fatal("plane.yaml names an export header; the credential belongs in the environment")
 	}
 	writeFile(t, tr.path("plane.yaml"), config)
 }
@@ -202,6 +205,12 @@ func environ() []string {
 		}
 	}
 	return out
+}
+
+// planeEnviron is environ with the collector's credential given as the
+// export header, as the guide gives it, so the token never sits in plane.yaml.
+func planeEnviron() []string {
+	return append(environ(), brand.Env("EXPORT_HEADERS_AUTHORIZATION")+"=Bearer "+collectorToken)
 }
 
 // lockedBuffer is a buffer a process writes while the test reads it.
