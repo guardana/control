@@ -126,8 +126,8 @@ mv plane.yaml.filled plane.yaml
 if grep -q 'FROM_KEYGEN\|FROM_FILE\|FROM_ID\|/absolute/path' plane.yaml; then
   die "a placeholder is left in plane.yaml"
 fi
-if grep -q 'Authorization' plane.yaml; then
-  die "plane.yaml names an Authorization header; the credential belongs in the environment"
+if grep -qiE '^[[:space:]]*(headers|authorization)[[:space:]]*:' plane.yaml; then
+  die "plane.yaml names an export header; the credential belongs in the environment"
 fi
 [[ -n "$(find . -maxdepth 0 -perm 700)" ]] || die "the plane's directory is not mode 0700"
 

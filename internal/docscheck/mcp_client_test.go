@@ -130,3 +130,31 @@ func TestTheMCPClientCheckRunsEveryCommandOfTheGuide(t *testing.T) {
 		}
 	}
 }
+
+// TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide: the guide closes the
+// plane's directory and gives the collector's credential through the
+// environment, and the check does both, so neither the guide nor the check can
+// drop one without failing here.
+func TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide(t *testing.T) {
+	root := repoRoot(t)
+	guide, err := os.ReadFile(filepath.Join(root, mcpClientGuide)) //nolint:gosec // G304: a path this repository names
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(filepath.Join(root, mcpClientScript)) //nolint:gosec // G304: a path this repository names
+	if err != nil {
+		t.Fatal(err)
+	}
+	variable := regexp.QuoteMeta(brand.Env("EXPORT_HEADERS_AUTHORIZATION"))
+	for _, step := range []struct{ guide, script string }{
+		{`(?m)^chmod 700 ~/files-plane$`, `(?m)^chmod 700 "\$\{work\}/plane"$`},
+		{`(?m)^export ` + variable + `="Bearer \$\(cat collector\.credential\)"$`, `(?m)^export ` + variable + `$`},
+	} {
+		if !regexp.MustCompile(step.guide).Match(guide) {
+			t.Errorf("%s holds no line matching %s", mcpClientGuide, step.guide)
+		}
+		if !regexp.MustCompile(step.script).Match(script) {
+			t.Errorf("%s holds no line matching %s", mcpClientScript, step.script)
+		}
+	}
+}
