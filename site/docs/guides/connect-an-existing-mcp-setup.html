@@ -205,6 +205,7 @@ this plane:</p>
 <pre><code>export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat collector.credential)&#34;
 </code></pre>
 <h3 id="4-start-a-collector">4. Start a collector</h3>
+<p>Start the collector in a terminal of its own:</p>
 <pre><code>guardana-gateway collect --listen &#34;unix://$PWD/collect.sock&#34; --dir trail --tenant local --project files \
     --credential-file collector.credential
 </code></pre>
@@ -214,7 +215,8 @@ directory is what step 9 reads.
 <a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a> is
 the collector's page.</p>
 <h3 id="5-check-the-classification">5. Check the classification</h3>
-<pre><code>guardana-gateway doctor --config plane.yaml
+<pre><code>export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat collector.credential)&#34;
+guardana-gateway doctor --config plane.yaml
 </code></pre>
 <p>The line to read is <code>upstreams</code>: <code>14 tool(s) listed, 14 classified, 0 unclassified</code>. Each override pins one tool's definition by its fingerprint and
 says what the tool does: <code>READ</code> or <code>WRITE</code>, the resource it touches and, for most, where in the arguments it

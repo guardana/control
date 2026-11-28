@@ -30,12 +30,13 @@ verify one.
   another local account could read the credential and send events the collector
   kept as the plane's evidence. Run `chmod 700` on the existing plane directory
   and make a new `collector.credential` (connect guide, step 3), since another
-  local account may have read the old one. Remove `export.headers` from
-  `plane.yaml`, set `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION` from the new
-  credential, and restart the collector (`guardana-gateway collect`) and the
-  plane with it. Treat trail events the collector received while the old
-  credential sat in a readable `plane.yaml` as possibly sent by another local
-  account.
+  local account may have read the old one. A signed plane keeps the new
+  credential under `export.headers` in its configuration, which no other account
+  should read. Outside `approvals.authority: signed`, remove `export.headers`
+  and set `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION` from it. Restart the
+  collector (`guardana-gateway collect`) and the plane with it. Treat trail
+  events the collector received while the old credential sat in a readable
+  `plane.yaml` as possibly sent by another local account.
 
 ### Fixed
 

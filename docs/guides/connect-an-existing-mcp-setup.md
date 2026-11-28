@@ -102,6 +102,8 @@ export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat collector.cre
 
 ### 4. Start a collector
 
+Start the collector in a terminal of its own:
+
 ```
 guardana-gateway collect --listen "unix://$PWD/collect.sock" --dir trail --tenant local --project files \
     --credential-file collector.credential
