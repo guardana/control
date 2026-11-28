@@ -11,14 +11,6 @@ verify one.
 
 ## [Unreleased]
 
-### Documentation
-
-- Until 1.0, each release follows a review of the changes since the previous
-  release, by a reviewer who did not write them, and a check of the pages those
-  changes touch. The whole tree is audited once, on the 1.0 release candidate,
-  instead of before every release
-  ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
-
 ### Fixed
 
 - `policy renew --out <file>` judges `--out` again if another renew replaces
@@ -29,6 +21,14 @@ verify one.
   directory, wrote to the same `--out` at the same moment, one could fail with
   "the path holds something other than a freshness statement ... it changed
   while it was judged".
+
+### Documentation
+
+- Until 1.0, each release follows a review of the changes since the previous
+  release, by a reviewer who did not write them, and a check of the pages those
+  changes touch or make suspect. The whole tree is audited once, on the 1.0
+  release candidate, instead of before every release
+  ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
 
 ## [0.19.1] - 2026-11-27
 

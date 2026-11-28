@@ -139,14 +139,6 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.19.1...HEAD">Unreleased</a></h2>
-<h3 id="documentation">Documentation</h3>
-<ul>
-<li>Until 1.0, each release follows a review of the changes since the previous
-release, by a reviewer who did not write them, and a check of the pages those
-changes touch. The whole tree is audited once, on the 1.0 release candidate,
-instead of before every release
-(<a href="/docs/adr/0052-a-change-is-gated-on-its-pull-request">ADR-0052</a>).</li>
-</ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
 <li><code>policy renew --out &lt;file&gt;</code> judges <code>--out</code> again if another renew replaces
@@ -157,6 +149,14 @@ another renew wrote meanwhile. When two runs, each under its own signer floor
 directory, wrote to the same <code>--out</code> at the same moment, one could fail with
 &quot;the path holds something other than a freshness statement ... it changed
 while it was judged&quot;.</li>
+</ul>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li>Until 1.0, each release follows a review of the changes since the previous
+release, by a reviewer who did not write them, and a check of the pages those
+changes touch or make suspect. The whole tree is audited once, on the 1.0
+release candidate, instead of before every release
+(<a href="/docs/adr/0052-a-change-is-gated-on-its-pull-request">ADR-0052</a>).</li>
 </ul>
 <h2 id="0191---2026-11-27"><a href="https://github.com/guardana/control/releases/tag/v0.19.1">0.19.1</a> - 2026-11-27</h2>
 <p>Upgrading from 0.18 changes requirements across several tools, and more under

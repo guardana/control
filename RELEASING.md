@@ -2,14 +2,15 @@
 
 `.github/workflows/release.yml` builds, signs and publishes every release;
 no asset is uploaded from a laptop. Until 1.0 a release follows every one to
-three changes, each after a review of its changes; from 1.0, every Monday, an
+three changes, each after someone who did not write them reviews all
+changes since the previous release; from 1.0, every Monday, an
 urgent fix out of turn
 ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
 
 ## Cutting a release
 
 1. Reconcile `docs/status.md` with the candidate's exercised commands and
-   tests. Move built work out of `planned`; promote `experimental` only when
+   tests. Move built work from `planned`; promote `experimental` only when
    documented readiness, compatibility and security checks pass. Record the
    proof and remaining limits.
 2. Update `README.md`, `site/index.html` and affected pages to that
@@ -20,8 +21,8 @@ urgent fix out of turn
    missing, undated or empty notes. Set its Python spelling (`1.2.3rc1`) in
    `clients/python/pyproject.toml` and run `uv lock` there.
 4. Gate the commit cold with `scripts/gate-commit.sh`; on it run
-   `make release-snapshot` and `make check-demo-archive`. The admin pushes it
-   to `main`, awaiting green CI and Security.
+   `make release-snapshot` and `make check-demo-archive`. The admin pushes to
+   `main`, awaiting green CI and Security.
 5. Tag the commit and push:
 
    ```sh
@@ -41,8 +42,7 @@ A version is `X.Y.Z`; a suffix like `-rc.1` marks a preview.
 
 ## What the workflow does
 
-1. Drafts the release (`scripts/draft-release.sh`), refusing a tag that has
-   one.
+1. Drafts the release (`scripts/draft-release.sh`), refusing an existing release.
 2. Builds `guardana-gateway` and `guardana-control` for Linux and macOS on
    amd64 and arm64: per platform an archive of both and a demo archive with
    the server, each with a CycloneDX bill of materials, in `checksums.txt`.
@@ -59,12 +59,12 @@ A version is `X.Y.Z`; a suffix like `-rc.1` marks a preview.
    separate job, re-runnable alone, uploads them to PyPI and reads them back.
 
 A known-vulnerable symbol, called or not, or an unavailable scan stops release.
-Only `main`'s head, covered by CI, Security and the newest CodeQL analysis,
+Only `main`'s head, covered by CI, Security and newest CodeQL analysis,
 may release; the image tag and Publish recheck that, the upload only the
 commit's runs. Before Publish, failure leaves at most a draft and
 staging/version image tags: delete them, fix the cause, release the next
 version. Publish names the tag, requires exactly the verified files and
-rereads both; failure then leaves a public release and names recovery steps.
+rereads both; failure leaves a public release and names recovery steps.
 
 ## A dry run
 
@@ -104,7 +104,7 @@ and attestation bind the archive to the workflow and tag.
 
 ## Checking the image
 
-A writer can overwrite a registry tag or the notes. Check the notes' digest
+Writers can overwrite registry tags or the notes. Check the notes' digest
 with cosign v3 or later; it signs the index, not each platform's image. For
 `vX.Y.Z`:
 
