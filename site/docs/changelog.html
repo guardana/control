@@ -155,7 +155,14 @@ remove it; a key the environment sets is refused under <code>approvals.authority
 (mode <code>0644</code> under the usual umask) with the credential in it, and the
 collector's socket in that directory accepted connections from any account, so
 another local account could read the credential and send events the collector
-kept as the plane's evidence.</li>
+kept as the plane's evidence. Run <code>chmod 700</code> on the existing plane directory
+and make a new <code>collector.credential</code> (connect guide, step 3), since another
+local account may have read the old one. Remove <code>export.headers</code> from
+<code>plane.yaml</code>, set <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code> from the new
+credential, and restart the collector (<code>guardana-gateway collect</code>) and the
+plane with it. Treat trail events the collector received while the old
+credential sat in a readable <code>plane.yaml</code> as possibly sent by another local
+account.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>

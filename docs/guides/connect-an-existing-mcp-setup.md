@@ -167,8 +167,9 @@ A client that can only start servers as commands starts the plane instead,
 with `listener.kind: stdio` and no `listener.address` in the profile. The client
 must start it with `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION` in its
 environment; most clients take an `env` object beside `command` and `args`.
-That puts the credential in the client's configuration file, which then must be
-readable by you alone:
+This puts the credential in the client's configuration file, so use the client's
+file in your home directory, never a project file kept in a repository or shared
+with others, and make it readable by you alone with `chmod 600`:
 
 ```json
 {

@@ -253,8 +253,9 @@ clients:</p>
 with <code>listener.kind: stdio</code> and no <code>listener.address</code> in the profile. The client
 must start it with <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code> in its
 environment; most clients take an <code>env</code> object beside <code>command</code> and <code>args</code>.
-That puts the credential in the client's configuration file, which then must be
-readable by you alone:</p>
+This puts the credential in the client's configuration file, so use the client's
+file in your home directory, never a project file kept in a repository or shared
+with others, and make it readable by you alone with <code>chmod 600</code>:</p>
 <pre><code class="language-json">{
   &#34;mcpServers&#34;: {
     &#34;files&#34;: {
