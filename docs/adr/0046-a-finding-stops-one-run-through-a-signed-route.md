@@ -47,6 +47,11 @@ Amended when `/healthz` stopped naming runs: it counts the active and unheld
 stops and leaves out their entries, which only `health.socket` lists
 ([versions](../reference/versions.md)).
 
+Amended by [ADR-0089](0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md):
+the route under `reaction.public_key` is `reaction-route/v1alpha4`, names the
+tenant, the project and a scope per rule, and takes a stop list at version
+`4.0`. The plane refuses `v1alpha1` routes and `1.0` lists.
+
 ## Context
 
 ADR-0039 decided that a reaction turns a finding into a stop of one run's later

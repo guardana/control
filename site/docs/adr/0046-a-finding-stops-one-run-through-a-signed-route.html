@@ -169,6 +169,10 @@ the scope and subject it names.</p>
 <p>Amended when <code>/healthz</code> stopped naming runs: it counts the active and unheld
 stops and leaves out their entries, which only <code>health.socket</code> lists
 (<a href="/docs/reference/versions">versions</a>).</p>
+<p>Amended by <a href="/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project">ADR-0089</a>:
+the route under <code>reaction.public_key</code> is <code>reaction-route/v1alpha4</code>, names the
+tenant, the project and a scope per rule, and takes a stop list at version
+<code>4.0</code>. The plane refuses <code>v1alpha1</code> routes and <code>1.0</code> lists.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0039 decided that a reaction turns a finding into a stop of one run's later
 calls, under a route signed with a key apart from the policy key, and that a

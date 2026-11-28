@@ -29,6 +29,16 @@ verify one.
   collector's socket in that directory accepted connections from any account, so
   another local account could read the credential and send events the collector
   kept as the plane's evidence.
+### Fixed
+
+- `policy renew --out <file>` judges `--out` again if another renew replaces
+  the file between looking at the path and opening it, as it already did when
+  the file changed at other steps. It replaces an older statement, or keeps a
+  newer one and says that a newer statement for the bundle id is there, which
+  another renew wrote meanwhile. When two runs, each under its own signer floor
+  directory, wrote to the same `--out` at the same moment, one could fail with
+  "the path holds something other than a freshness statement ... it changed
+  while it was judged".
 
 ## [0.19.1] - 2026-11-27
 

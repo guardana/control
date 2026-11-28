@@ -388,3 +388,45 @@ func TestWriteStatementReplacesOnlyTheStatementItJudged(t *testing.T) {
 		t.Errorf("the control, the statement as it was judged: %v", err)
 	}
 }
+
+// TestAStatementRenamedInBeforeItIsOpenedIsJudgedAgain: a statement renamed
+// over the path between the write's look at it and its open is kept, and the
+// write says nothing was written and the path was not the one judged, so a
+// renew judges it again; the control, the path left as it was, is replaced.
+func TestAStatementRenamedInBeforeItIsOpenedIsJudgedAgain(t *testing.T) {
+	env := signedStatement(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "statement.json")
+	if err := os.WriteFile(path, []byte(envelopeFile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	judged, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(dir, "other.json")
+	const another = envelopeFile + "\n"
+	policykey.AfterStatementOutLstat(t, func() {
+		if err := os.WriteFile(other, []byte(another), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(other, path); err != nil {
+			t.Fatal(err)
+		}
+	})
+	err = policykey.WriteStatementOver(t.Context(), path, env, judged)
+	if !errors.Is(err, files.ErrNothingWritten) || !errors.Is(err, files.ErrNotJudged) {
+		t.Errorf("a write over a statement renamed in before its open = %v, want files.ErrNothingWritten and files.ErrNotJudged", err)
+	}
+	if got := readFile(t, path); string(got) != another {
+		t.Errorf("the statement renamed in now holds %q", got)
+	}
+	policykey.AfterStatementOutLstat(t, func() {})
+	judged, err = os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := policykey.WriteStatementOver(t.Context(), path, env, judged); err != nil {
+		t.Errorf("the control, the statement as it was judged: %v", err)
+	}
+}
