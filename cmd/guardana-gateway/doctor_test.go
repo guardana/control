@@ -312,10 +312,41 @@ func TestDoctorRefusesAToolNameTwoUpstreamsList(t *testing.T) {
 			t.Errorf("%s: doctor passed with a tool name two upstreams list:\n%s", mode, out.String())
 		}
 		text := out.String()
-		if !strings.Contains(text, "2 tool(s) listed, 2 classified, 0 unclassified; 1 tool name(s) listed by more than one upstream") ||
-			!strings.Contains(text, "read_order is listed by more than one upstream") {
+		if !strings.Contains(text, "2 tool(s) listed, 2 classified, 0 unclassified; 1 tool name(s) listed more than once") ||
+			!strings.Contains(text, "read_order is listed more than once, so a call to it is unclassified") {
 			t.Errorf("%s: doctor does not name the shared tool:\n%s", mode, text)
 		}
+	}
+}
+
+// TestDoctorNamesNoSharedToolAWithheldDefinitionHolds: two upstreams list a
+// tool whose definition quotes a configured secret, so both are withheld and
+// the name is shared; doctor refuses the check and never prints the name.
+func TestDoctorNamesNoSharedToolAWithheldDefinitionHolds(t *testing.T) {
+	tr := newTree(t)
+	raw, err := os.ReadFile(filepath.Clean(tr.config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	one := "upstreams:\n  - name: orders\n    endpoint: http://127.0.0.1:1/mcp\n"
+	if !strings.Contains(string(raw), one) {
+		t.Fatalf("the fixture's upstreams block changed:\n%s", raw)
+	}
+	two := "upstreams:\n  - name: orders\n    endpoint: " + upstream(t) + "/?k=read_order\n  - name: billing\n    endpoint: " + upstream(t) + "/?k=read_order\n"
+	if err := os.WriteFile(filepath.Clean(tr.config), []byte(strings.Replace(string(raw), one, two, 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if status := doctor(context.Background(), tr.config, &out, &out); status == exitOK {
+		t.Errorf("doctor passed with a shared tool name:\n%s", out.String())
+	}
+	text := out.String()
+	if !strings.Contains(text, "2 withheld; 1 tool name(s) listed more than once") ||
+		!strings.Contains(text, "<withheld name> is listed more than once") {
+		t.Errorf("doctor does not count the shared withheld tool:\n%s", text)
+	}
+	if strings.Contains(text, "read_order") {
+		t.Errorf("doctor prints the name a withheld definition holds:\n%s", text)
 	}
 }
 

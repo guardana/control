@@ -42,8 +42,8 @@ func (d *examination) upstreams(ctx context.Context) (string, string, string) {
 		found += fmt.Sprintf("; %d pause entry(ies) name a tool its upstream does not list", d.strayTools(entries))
 	}
 	if shared > 0 {
-		found += fmt.Sprintf("; %d tool name(s) listed by more than one upstream", shared)
-		return verdictUnknown, "upstreams", found + "; a call to such a name reaches no upstream in any mode"
+		found += fmt.Sprintf("; %d tool name(s) listed more than once", shared)
+		return verdictUnknown, "upstreams", found + "; a call to such a name is unclassified in every mode"
 	}
 	if unclassified > 0 && d.cfg.ModeName != gatewayconfig.ModeObserve {
 		return verdictUnknown, "upstreams", found + "; outside OBSERVE a call to an unclassified tool is blocked with ACTION_UNCLASSIFIED"
@@ -51,28 +51,40 @@ func (d *examination) upstreams(ctx context.Context) (string, string, string) {
 	return verdictOK, "upstreams", found
 }
 
-// listTools writes a line for each tool name more than one upstream lists and
-// for each unclassified tool, and counts the unclassified, the withheld and
-// the shared names.
+// listTools writes a line for each tool name listed more than once and for
+// each unclassified tool, and counts the unclassified, the withheld and the
+// shared names. A name any withheld definition holds is never written, since
+// it may hold the very value the scan found, though another upstream lists it.
 func (d *examination) listTools(entries []adaptermcp.Entry) (unclassified, withheld, shared int) {
+	hidden := map[string]bool{}
+	for _, e := range entries {
+		if _, ok := e.Withheld(); ok {
+			hidden[e.Tool.Name] = true
+		}
+	}
+	shown := func(name string) string {
+		if hidden[name] {
+			return "<withheld name>"
+		}
+		return oneLine(name)
+	}
 	seen := map[string]bool{}
 	for _, e := range entries {
 		if e.Ambiguous && !seen[e.Tool.Name] {
 			seen[e.Tool.Name] = true
-			writeLine(d.out, fmt.Sprintf("       %s is listed by more than one upstream, so no call to it can be routed", oneLine(e.Tool.Name)))
+			writeLine(d.out, fmt.Sprintf("       %s is listed more than once, so a call to it is unclassified", shown(e.Tool.Name)))
 		}
 		if e.Classified {
 			continue
 		}
 		unclassified++
 		if why, ok := e.Withheld(); ok {
-			// The name and the definition may hold the very value the scan found.
 			withheld++
 			writeLine(d.out, fmt.Sprintf("       %s: a tool definition is withheld; %s", oneLine(e.Upstream), oneLine(why)))
 			continue
 		}
 		writeLine(d.out, fmt.Sprintf("       %s/%s is unclassified; its definition fingerprints as %s",
-			oneLine(e.Upstream), oneLine(e.Tool.Name), oneLine(e.Fingerprint)))
+			oneLine(e.Upstream), shown(e.Tool.Name), oneLine(e.Fingerprint)))
 	}
 	return unclassified, withheld, len(seen)
 }
