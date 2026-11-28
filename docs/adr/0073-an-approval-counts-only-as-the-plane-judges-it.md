@@ -73,6 +73,23 @@ Amended in 0.19: the plane refuses an inbox its own account does not own, at
 the start, in doctor and at every read, and prunes no other. That owner could
 unlink any answer, a rejection among them, out of the plane's sight.
 
+Amended in 0.20: `signed` reads a name for an approval if the part before the
+first `.` matches its id ignoring ASCII letter case. It reads names with any
+byte outside ASCII for every approval, since volumes may fold case or
+normalize names. A file so named must have its name spelled exactly and an
+`approval-answer/v1alpha1` body for that approval. Its label must match the
+body's `<key id>-<decision>` with an optional suffix `-2` through `-16`. Its
+envelope must carry exactly one signature under that key. A file that fails
+these checks makes the batch unjudged. An answer that cannot authenticate is
+counted under the cause `unauthenticated`. A correctly named and authenticated
+answer from an operator without the call's tenant and project grant is left
+out and counted. A valid rejection in the batch wins. Without one, the hold
+stands, the call is `INDETERMINATE`, and a reconciliation closes it
+`APPROVAL_STATE_UNKNOWN`. Above 4096 inbox names or 16 answers for one
+approval the batch is unavailable even with a rejection. An inbox writer can
+hold a call `INDETERMINATE` despite a valid rejection, by truncating the
+batch, but cannot make one run.
+
 **`approvals.authority: memory | directory | signed` replaces
 `approvals.provider` and has no default.** A configuration without it, or
 with the old key, is refused naming both. `directory` is what `provider:

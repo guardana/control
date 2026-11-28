@@ -141,7 +141,35 @@ verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.19.1...HEAD">Unreleased</a></h2>
 <h3 id="security">Security</h3>
 <ul>
-<li>The guides &quot;Connect an existing MCP setup&quot;, &quot;Supervise and stop a run&quot; and
+<li>Under <code>approvals.authority: signed</code>, the plane reads the part of an inbox
+name before the first <code>.</code> without regard to ASCII letter case. A name
+holding a byte outside ASCII is read for every approval. A file the
+plane cannot hold to its name makes the batch unjudged. An inbox writer
+can keep a held call <code>INDETERMINATE</code>. A non-ASCII name can do so for all
+holds, as an inbox past 4096 names already does. Before, an inbox writer
+could take another operator's rejection name with another approval's body
+or junk, or vary case on a folding volume, and the sticky bit kept the
+operator from removing it, letting another approval run the call.</li>
+</ul>
+<h3 id="changed">Changed</h3>
+<ul>
+<li>
+<p>Answers failing authentication (including those signed by a key a newer
+roster no longer names) count under cause <code>unauthenticated</code>. A file the
+plane cannot hold to its name (another case, bad label, another approval's
+body) counts <code>misnamed</code> in the inbox, making the batch unjudged
+(<code>/healthz</code> and <code>pipeline_answers_refused_total{cause}</code> show
+<code>batch_unjudged</code>). Either way a valid rejection wins; without one the hold
+stands, the call is <code>INDETERMINATE</code>, and a reconciliation closes it
+<code>APPROVAL_STATE_UNKNOWN</code>. <code>approvals approve|reject --key</code> uses <code>-2</code>
+through <code>-16</code> unless a taken name holds this account's verified answer;
+stderr reports <code>&lt;taken&gt; is held by a file that is not this answer (owned by uid N)</code> and the filed name. Earlier, owning the file alone counted as
+&quot;filed earlier&quot;, so hard-linking an earlier answer under the rejection's
+name blocked it. Before, unauthenticated answers, including answers from
+revoked keys, were left out and the command refused a taken name.</p>
+</li>
+<li>
+<p>The guides &quot;Connect an existing MCP setup&quot;, &quot;Supervise and stop a run&quot; and
 &quot;Check a security-testing agent&quot; and the example profiles
 <code>examples/connect-a-filesystem-server/plane.yaml</code> and
 <code>examples/refund-supervision/plane.yaml</code> no longer put the collector's
@@ -163,7 +191,8 @@ should read. Outside <code>approvals.authority: signed</code>, remove <code>expo
 and set <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code> from it. Restart the
 collector (<code>guardana-gateway collect</code>) and the plane with it. Treat trail
 events the collector received while the old credential sat in a readable
-<code>plane.yaml</code> as possibly sent by another local account.</li>
+<code>plane.yaml</code> as possibly sent by another local account.</p>
+</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>
@@ -226,7 +255,7 @@ plane, the evidence trail, supervision, the signed files and the gates. The
 hook profile, qualified on two releases of its runtime, was not qualified
 again for this release. 0.19.0 was tagged with most of these changes and
 never published: its release job stopped at the demo archive check.</p>
-<h3 id="changed">Changed</h3>
+<h3 id="changed-1">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> <code>collect</code> and <code>prune</code> refuse a trail directory whose parent
 is owned by an account other than this one or root, or may be written by
@@ -1128,7 +1157,7 @@ outside the project
 (<a href="/docs/adr/0085-the-1-0-bar-is-met-by-own-evidence-and-what-needs-outside-people-stays-not-met">ADR-0085</a>).
 The hook profile, qualified on two releases of its runtime, was not
 qualified again for this release.</p>
-<h3 id="changed-1">Changed</h3>
+<h3 id="changed-2">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a plane needs <code>plane_id</code>, an
 identifier the operator chooses for it, set in the configuration file; any
@@ -1317,7 +1346,7 @@ passed (<a href="/docs/adr/0081-tests-that-need-a-second-account-run-in-a-requir
 <code>scripts/lib/github-settings.sh</code> declares it a required check; it gates a
 pull request once the maintainer applies those settings.</li>
 </ul>
-<h3 id="changed-2">Changed</h3>
+<h3 id="changed-3">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> the plane refuses to start when <code>health.socket_uid</code> names
 the plane's own account, and <code>doctor</code> fails its <code>health.socket</code> check: the
@@ -1547,7 +1576,7 @@ path but a stale socket of the plane's account is refused, and the plane
 removes its socket when it stops.</li>
 <li><code>doctor</code> warns of every TCP <code>export.endpoint</code>, naming the unix form.</li>
 </ul>
-<h3 id="changed-3">Changed</h3>
+<h3 id="changed-4">Changed</h3>
 <ul>
 <li><strong>Breaking:</strong> under <code>approvals.authority: signed</code> a <code>v1alpha1</code> route, a
 <code>1.0</code> stop list, a lift of the route's lift key and <code>reaction.public_key</code>
@@ -1794,7 +1823,7 @@ effect class's presence and what a class requires, for an envelope nothing
 classified. <code>Validate</code> does not change (<a href="/docs/adr/0067-the-pipeline-refuses-what-an-adapter-could-not-translate">ADR-0067</a>).</p>
 </li>
 </ul>
-<h3 id="changed-4">Changed</h3>
+<h3 id="changed-5">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> <code>trail &lt;file&gt;</code> refuses a file in a log's directory, named
@@ -2331,7 +2360,7 @@ pass all 20 cases.</li>
 point's published metadata gives its identifier or evaluation endpoint as
 JSON <code>null</code>, as it does for any other value that is not a string.</li>
 </ul>
-<h3 id="changed-5">Changed</h3>
+<h3 id="changed-6">Changed</h3>
 <ul>
 <li>The <a href="/docs/reference/claude-code-hooks">built-in hook profile</a> is
 qualified on a newer release of its runtime too: all 20 cases passed on the
@@ -2441,7 +2470,7 @@ connections, so a second plane could remove its socket and take its clients
 Built for Solaris, illumos or AIX, which have no <code>flock</code>, the receiver now
 refuses to listen, and <code>doctor</code> checks the lock file as <code>run</code> would.</li>
 </ul>
-<h3 id="changed-6">Changed</h3>
+<h3 id="changed-7">Changed</h3>
 <ul>
 <li>A call is handed out only while the policy bundle it was decided under is
 still installed and fresh. A bundle replaced, or past its staleness budget,
@@ -2496,7 +2525,7 @@ to PyPI by trusted publishing, with no stored token, and reads the index
 back. The dry run uploads a development release to TestPyPI the same way,
 from <code>main</code>.</li>
 </ul>
-<h3 id="changed-7">Changed</h3>
+<h3 id="changed-8">Changed</h3>
 <ul>
 <li>A change reaches <code>main</code> as one squash-merged pull request whose gate is
 CI's <code>make quality</code>, a maintainer's own included; only a release commit is
@@ -2606,7 +2635,7 @@ qualifying coding-agent hooks, reviewing tool-definition changes,
 simulating candidate policies and reviewing findings with an incident
 export. None is built.</li>
 </ul>
-<h3 id="changed-8">Changed</h3>
+<h3 id="changed-9">Changed</h3>
 <ul>
 <li>On an <code>enforce_api</code> plane <code>/metrics</code> writes the enforcement API adapter's
 counts (<code>enforce_*</code>) and the flag <code>listener_enforce_api</code>, and leaves out the
@@ -2752,7 +2781,7 @@ a user writes or reads with the version this release writes, the versions it
 reads and its stability, held to the code's constants by a test. The wire
 contract's <code>1.0</code> is the one stable format; the product is still 0.x.</li>
 </ul>
-<h3 id="changed-9">Changed</h3>
+<h3 id="changed-10">Changed</h3>
 <ul>
 <li>The website names the published release, which <code>docs/docs.json</code> sets once a
 release is out, rather than the newest dated section of this file, and each
@@ -2862,7 +2891,7 @@ line as well as colour. It shows each finding's calls and their neighbours,
 or with <code>--view-all</code> every call up to a bound
 (<a href="/docs/reference/run-view">run view</a>).</li>
 </ul>
-<h3 id="changed-10">Changed</h3>
+<h3 id="changed-11">Changed</h3>
 <ul>
 <li>Every reader of a route (<code>route sign</code>, <code>react</code>, a plane at start, <code>doctor</code> and
 the <code>stops</code> commands) refuses one that names a rule or a rule version outside
@@ -2951,7 +2980,7 @@ stopped run's children are not stopped. <code>doctor</code>, <code>/healthz</cod
 report the route and the list; <code>examples/refund-supervision/</code> stops one of
 two runs on a live plane and lifts the stop.</li>
 </ul>
-<h3 id="changed-11">Changed</h3>
+<h3 id="changed-12">Changed</h3>
 <ul>
 <li>The policy key and the freshness key, in the configuration and in
 <code>guardana-control policy renew</code>, are compared as points up to their sign:
@@ -3103,7 +3132,7 @@ suspected at most, and a skipped step is never confirmed. No plane reads a
 finding, and no finding stops a run. <code>examples/refund-supervision/</code> runs it
 on a live plane.</li>
 </ul>
-<h3 id="changed-12">Changed</h3>
+<h3 id="changed-13">Changed</h3>
 <ul>
 <li>An upstream's answer, wire error, listed item or tool definition that quotes
 a credential the plane sends reaches the agent as a fixed answer, never with
@@ -3172,7 +3201,7 @@ envelope's <code>trace_id</code> and <code>span_id</code>, so a trail can be joi
 runtime's traces. A missing or malformed value leaves both empty and changes
 nothing else.</li>
 </ul>
-<h3 id="changed-13">Changed</h3>
+<h3 id="changed-14">Changed</h3>
 <ul>
 <li>The plan follows <a href="/docs/adr/0039-many-channels-into-one-core">ADR-0039</a>:
 MCP is one channel of several. The next milestone is one task under
@@ -3320,7 +3349,7 @@ refuses the key. <code>/metrics</code> carries
 <li><code>guardana-control policy explain</code> prints a <code>clock</code> line: <code>usable</code>, or why
 the clock stopped the decision.</li>
 </ul>
-<h3 id="changed-14">Changed</h3>
+<h3 id="changed-15">Changed</h3>
 <ul>
 <li>
 <p><strong>Breaking:</strong> a plane's configuration needs five more keys:
@@ -3560,7 +3589,7 @@ restart, and a held call resumes only from its own run. A refused token is
 answered with HTTP 401 or the JSON-RPC error <code>-31102</code>, and the refusals are
 counted by cause. A plane without <code>runs.dir</code> is unchanged.</li>
 </ul>
-<h3 id="changed-15">Changed</h3>
+<h3 id="changed-16">Changed</h3>
 <ul>
 <li>The release job waits for a maintainer to approve it in the <code>release</code>
 environment before it builds; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> has the step.</li>
@@ -3582,7 +3611,7 @@ are a demo archive that runs without Go, an evidence export another program
 resumes by cursor, and the documentation on the website.
 <a href="/docs/status">docs/status.md</a> says what is <code>implemented</code> and what is
 <code>experimental</code>. Nothing here is a security boundary yet.</p>
-<h3 id="changed-16">Changed</h3>
+<h3 id="changed-17">Changed</h3>
 <ul>
 <li><code>mode</code> has no default: a configuration that names no enforcement mode is
 refused at load instead of starting a plane in <code>OBSERVE</code>, which stops nothing
@@ -3680,7 +3709,7 @@ and where it stops; what a record holds, where it goes and how long it
 stays (<a href="/docs/concepts/threat-model">docs/concepts/threat-model.md</a>,
 <a href="/docs/concepts/privacy">docs/concepts/privacy.md</a>).</li>
 </ul>
-<h3 id="changed-17">Changed</h3>
+<h3 id="changed-18">Changed</h3>
 <ul>
 <li>A stdio upstream no longer inherits the plane's environment. It gets
 <code>PATH</code>, <code>HOME</code>, <code>LANG</code>, <code>LC_ALL</code>, <code>TMPDIR</code> and <code>USER</code>, each where the

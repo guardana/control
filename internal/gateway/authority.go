@@ -50,6 +50,11 @@ type AnswerBatch struct {
 	State   BatchState
 	Signed  []trust.Envelope
 	Claimed []*controlv1.Approval
+	// Unjudged is a complete batch beside which the authority found a file
+	// named for the approval that it could not judge as an answer: it may
+	// stand where a rejection was refused. A valid rejection in Signed still
+	// wins; anything else reads as unavailable.
+	Unjudged bool
 }
 
 // AuthorityKind is how a plane takes an approver's answer. It is a closed
@@ -100,6 +105,7 @@ type AuthorityStatus struct {
 const (
 	AnswerBatchUnavailable = "batch_unavailable"
 	AnswerBatchTruncated   = "batch_truncated"
+	AnswerBatchUnjudged    = "batch_unjudged"
 	AnswerUnauthenticated  = "unauthenticated"
 	AnswerAuthnUnavailable = "authentication_unavailable"
 	AnswerBody             = "body"
@@ -114,7 +120,7 @@ const (
 // AnswerCauses is every cause Stats.Answers counts, in a fixed order.
 func AnswerCauses() []string {
 	return []string{
-		AnswerBatchUnavailable, AnswerBatchTruncated, AnswerUnauthenticated, AnswerAuthnUnavailable, AnswerBody,
+		AnswerBatchUnavailable, AnswerBatchTruncated, AnswerBatchUnjudged, AnswerUnauthenticated, AnswerAuthnUnavailable, AnswerBody,
 		AnswerOtherHold, AnswerWindow, AnswerUnauthorized, AnswerAuthzUnavailable, AnswerApproverID, AnswerClaimIgnored,
 	}
 }
@@ -162,7 +168,11 @@ func (p *Pipeline) answerFor(ctx context.Context, h heldFacts, now time.Time) ju
 		for range batch.Claimed {
 			p.counts.answerRefused(AnswerClaimIgnored)
 		}
-		return p.judgeSigned(ctx, h, batch.Signed, now)
+		return p.judgeSigned(ctx, h, batch, now)
+	}
+	if batch.Unjudged {
+		p.counts.answerRefused(AnswerBatchUnjudged)
+		return judged{}
 	}
 	return claimed(h, batch.Claimed)
 }
@@ -189,17 +199,19 @@ func claimed(h heldFacts, claims []*controlv1.Approval) judged {
 
 // judgeSigned is the signed kind's fold. Each answer is authenticated, read,
 // compared member by member with the hold, and authorized for the hold's own
-// tenant and project at the grant that approves; one that fails any step is
-// counted and left out, save a rejection decided outside the window, which
-// is authorized like any. A valid rejection wins over every approval. Where an
-// answer could not be judged for want of the roster or the authorizer, or the
-// body of one from an operator who may answer the hold cannot be read, and no
-// valid rejection was found, the fold cannot say there is none, so it is
-// unreadable.
-func (p *Pipeline) judgeSigned(ctx context.Context, h heldFacts, signed []trust.Envelope, now time.Time) judged {
+// tenant and project at the grant that approves; one that fails any step
+// after authentication is counted and left out, save a rejection decided
+// outside the window, which is authorized like any. A valid rejection wins
+// over every approval and over every file nobody could judge. Where the
+// authority found a file it could not judge, an answer did not authenticate,
+// an answer could not be judged for want of the roster or the authorizer, or
+// the body of one from an operator who may answer the hold cannot be read,
+// and no valid rejection was found, the fold cannot say there is none, so it
+// is unreadable.
+func (p *Pipeline) judgeSigned(ctx context.Context, h heldFacts, batch AnswerBatch, now time.Time) judged {
 	var approve *judged
 	unknown := false
-	for _, env := range signed {
+	for _, env := range batch.Signed {
 		j, decision, known := p.judgeEnvelope(ctx, h, env, now)
 		switch {
 		case !known:
@@ -212,24 +224,29 @@ func (p *Pipeline) judgeSigned(ctx context.Context, h heldFacts, signed []trust.
 		}
 	}
 	switch {
+	case batch.Unjudged:
+		p.counts.answerRefused(AnswerBatchUnjudged)
+		return judged{}
 	case unknown:
 		return judged{}
 	case approve != nil:
 		return *approve
 	}
-	return judged{readable: true, unanswered: len(signed) == 0}
+	return judged{readable: true, unanswered: len(batch.Signed) == 0}
 }
 
 // judgeEnvelope takes one signed answer through the four steps in order and
 // returns what it answered, or nil where a step refused it. known is false
-// where a step could not answer at all.
+// where a step could not answer at all, and where the answer does not
+// authenticate: any account that may write the authority can file such a
+// file under the name an operator's rejection needs.
 func (p *Pipeline) judgeEnvelope(ctx context.Context, h heldFacts, env trust.Envelope, now time.Time) (*judged, string, bool) {
 	who := p.cfg.Authenticator.Authenticate(ctx, operators.ActApprove, env)
 	switch who.State() {
 	case operators.AuthAuthenticated:
 	case operators.AuthRefused:
 		p.counts.answerRefused(AnswerUnauthenticated)
-		return nil, "", true
+		return nil, "", false
 	default:
 		p.counts.answerRefused(AnswerAuthnUnavailable)
 		return nil, "", false

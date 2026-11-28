@@ -262,7 +262,13 @@ guardana-control approvals approve --key op/signing.key --inbox /var/lib/guardan
 answer counts only from a roster operator granted <code>operate</code> for the call's
 tenant and project; <code>--approver-id</code> is refused for a signed hold, and the
 command warns when run as the plane's account. The agent's identical retry
-then runs (<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>).</p>
+then runs (<a href="/docs/concepts/approvals-and-the-held-call">approvals</a>). If the
+first name holds a file other than this account's verified answer for this
+approval, key and decision, the command files under the next free label, from
+<code>-2</code> through <code>-16</code>. Stderr gives both names and the taken file's owner UID.
+A file whose name holds a byte outside ASCII holds every waiting call
+<code>INDETERMINATE</code>; <code>/healthz</code> counts it under <code>misnamed</code>, and inbox pruning
+never removes it, so remove it by hand.</p>
 <h3 id="5-pause-a-tool">5. Pause a tool</h3>
 <p>As the operator, who owns <code>/srv/pause</code>, and <code>floor init</code> as the plane:</p>
 <pre><code>guardana-control pause init --key op/signing.key --plane-id orders-eu-1 --tenant acme --project orders \
@@ -287,10 +293,13 @@ and install it over the old one. The plane reads the roster file again each
 time it judges a signature and takes a higher serial. Once the roster it
 holds has expired and no newer one is in place, no operator's signature
 counts.</p>
-<p>To revoke a key, leave its entry out and sign at the next serial. A plane
-that never reads the new roster, because it is not installed or is withheld,
-trusts the old one until it expires: a short <code>--valid-for</code> bounds how long a
-revoked key's signature still counts.</p>
+<p>To revoke a key, leave its entry out and sign at the next serial. A plane that
+never reads the new roster, because it is not installed or is withheld, trusts
+the old one until it expires: a short <code>--valid-for</code> bounds how long a revoked
+key's signature still counts. Once the plane reads the new roster, an answer
+signed by an omitted key holds its call <code>INDETERMINATE</code> until a valid
+rejection, the hold's expiry or file removal. Under the sticky bit, only the
+file's owner, the plane's account or root can remove it.</p>
 <h2 id="verify">Verify</h2>
 <p><code>doctor</code> prints an <code>ok</code> line for <code>trust</code> naming the plane, its tenant, the
 roster's id and serial, how many keys it names and the floor's serial. A

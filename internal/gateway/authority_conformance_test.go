@@ -176,6 +176,12 @@ func (r *authorityRig) skewedRejection(name string) {
 	})))
 }
 
+// forged files a rejection of the hold naming name's key whose signature
+// another key made, as any account that may write the inbox can.
+func (r *authorityRig) forged(name string) {
+	r.box.file(r.requested.GetApprovalId(), signedWith(r.t, operatorKey("mallory"), operatorID(name), answerTo(r.requested, approvals.DecisionReject, nil)))
+}
+
 // signedFrom files name's answer of decision to the hold.
 func (r *authorityRig) signedFrom(name, decision string) {
 	r.box.file(r.requested.GetApprovalId(), signedBy(r.t, name, answerTo(r.requested, decision, nil)))
@@ -226,6 +232,13 @@ func (r *authorityRig) setups() map[string]func() {
 			second := r.secondHold()
 			r.box.file(second, signedBy(t, "alice", answerTo(r.requested, approvals.DecisionApprove, nil)))
 		},
+		"squat":             r.box.setUnjudged,
+		"squat-restart":     r.box.setUnjudged,
+		"squat-alice":       func() { alice(); r.box.setUnjudged() },
+		"squat-race":        func() { alice(); r.box.setUnjudged(); r.signedFrom("carol", approvals.DecisionReject) },
+		"forged-alice":      func() { alice(); r.forged("carol") },
+		"forged-race":       func() { alice(); r.forged("carol"); r.signedFrom("carol", approvals.DecisionReject) },
+		"nothing-restart":   func() {},
 		"truncated":         func() { alice(); r.box.setState(gateway.BatchTruncated) },
 		"truncated-restart": func() { alice(); r.box.setState(gateway.BatchTruncated) },
 	}

@@ -141,12 +141,13 @@ func clockOf(h *harness) time.Time {
 // answerBox is an authority a test files answers in by approval id, with the
 // state every batch it hands out carries.
 type answerBox struct {
-	mu      sync.Mutex
-	kind    gateway.AuthorityKind
-	state   gateway.BatchState
-	signed  map[string][]trust.Envelope
-	claimed map[string][]*controlv1.Approval
-	asked   int
+	mu       sync.Mutex
+	kind     gateway.AuthorityKind
+	state    gateway.BatchState
+	unjudged bool
+	signed   map[string][]trust.Envelope
+	claimed  map[string][]*controlv1.Approval
+	asked    int
 }
 
 func newAnswerBox(kind gateway.AuthorityKind) *answerBox {
@@ -157,7 +158,7 @@ func (b *answerBox) Answers(_ context.Context, approvalID string) gateway.Answer
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.asked++
-	out := gateway.AnswerBatch{State: b.state, Signed: slices.Clone(b.signed[approvalID])}
+	out := gateway.AnswerBatch{State: b.state, Unjudged: b.unjudged, Signed: slices.Clone(b.signed[approvalID])}
 	for _, a := range b.claimed[approvalID] {
 		out.Claimed = append(out.Claimed, proto.CloneOf(a))
 	}
@@ -184,6 +185,14 @@ func (b *answerBox) setState(s gateway.BatchState) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.state = s
+}
+
+// setUnjudged makes every batch say the authority found a file it could not
+// judge beside the answers it hands back.
+func (b *answerBox) setUnjudged() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.unjudged = true
 }
 
 // signedTo makes cfg take its answers from box under the signed kind, judged

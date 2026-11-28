@@ -13,6 +13,33 @@ verify one.
 
 ### Security
 
+- Under `approvals.authority: signed`, the plane reads the part of an inbox
+  name before the first `.` without regard to ASCII letter case. A name
+  holding a byte outside ASCII is read for every approval. A file the
+  plane cannot hold to its name makes the batch unjudged. An inbox writer
+  can keep a held call `INDETERMINATE`. A non-ASCII name can do so for all
+  holds, as an inbox past 4096 names already does. Before, an inbox writer
+  could take another operator's rejection name with another approval's body
+  or junk, or vary case on a folding volume, and the sticky bit kept the
+  operator from removing it, letting another approval run the call.
+
+### Changed
+
+- Answers failing authentication (including those signed by a key a newer
+  roster no longer names) count under cause `unauthenticated`. A file the
+  plane cannot hold to its name (another case, bad label, another approval's
+  body) counts `misnamed` in the inbox, making the batch unjudged
+  (`/healthz` and `pipeline_answers_refused_total{cause}` show
+  `batch_unjudged`). Either way a valid rejection wins; without one the hold
+  stands, the call is `INDETERMINATE`, and a reconciliation closes it
+  `APPROVAL_STATE_UNKNOWN`. `approvals approve|reject --key` uses `-2`
+  through `-16` unless a taken name holds this account's verified answer;
+  stderr reports `<taken> is held by a file that is not this answer (owned
+  by uid N)` and the filed name. Earlier, owning the file alone counted as
+  "filed earlier", so hard-linking an earlier answer under the rejection's
+  name blocked it. Before, unauthenticated answers, including answers from
+  revoked keys, were left out and the command refused a taken name.
+
 - The guides "Connect an existing MCP setup", "Supervise and stop a run" and
   "Check a security-testing agent" and the example profiles
   `examples/connect-a-filesystem-server/plane.yaml` and

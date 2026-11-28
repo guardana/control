@@ -364,9 +364,14 @@ answered, and no file there reads as spent or given up. Under `directory` and
 ([ADR-0066](adr/0066-each-decision-about-authority-is-a-port.md)); under
 `signed` an answer counts only signed by a roster operator granted the call's
 tenant and project, from an inbox the plane's own account owns, refused
-otherwise at start and at every read, and the console, which holds no operator key, shows a signed
-hold and the command that signs it and answers nothing, and writes no pause
-under `signed` or into a signed pause file; a `dev` plane runs `signed` with an
+otherwise at start and at every read; any inbox writer (operators' group, no
+grant needed) can hold any held call `INDETERMINATE` with a file named for its
+approval the plane cannot judge, including a revoked operator's earlier
+answer, a valid rejection notwithstanding, until the hold's expiry or the
+files' removal, and a non-ASCII name holds every held call so, but it can
+never make a call run; the console, which holds no
+operator key, shows a signed hold and the command that signs it and answers
+nothing, and writes no pause under `signed` or into a signed pause file; a `dev` plane runs `signed` with an
 operator key in its own state directory, so its own account approves and pauses;
 a `memory` plane keeps no hold journal and does not close a lost hold; a hold
 journal restored from a copy older than its approval's spend is read as live, so

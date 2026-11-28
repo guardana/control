@@ -37,7 +37,8 @@ func AnswerFor(rec Record, decision, reason string, decidedAt time.Time, keyID s
 
 // AnswerLabel is the label an answer of a takes in the inbox: its key id and
 // its decision. One operator's approval and rejection of one approval are
-// two files, and a second answer of the same decision finds its name taken.
+// two files; an answer whose name is taken takes a fresh label of the same
+// key and decision instead.
 func AnswerLabel(a Answer) string {
 	return a.KeyID + "-" + a.Decision
 }

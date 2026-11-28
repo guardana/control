@@ -30,8 +30,12 @@ func inboxDir(t *testing.T, mode os.FileMode) string {
 	return dir
 }
 
-// answerFile is a file an operator would file: the envelope of an answer to
-// approvalID. The inbox verifies no signature, so the bytes are a stand-in.
+// ownName is the name key-1's approval of APPROVAL1 takes.
+const ownName = "APPROVAL1.key-1-approve.answer"
+
+// answerFile is a file an operator would file: the envelope of key-1's
+// approval of approvalID. The inbox verifies no signature, so the bytes are a
+// stand-in.
 func answerFile(t *testing.T, approvalID string) []byte {
 	t.Helper()
 	a := sampleAnswer()
@@ -48,6 +52,14 @@ func answerFile(t *testing.T, approvalID string) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+// fresh is the suffix of the i-th label an answer may take.
+func fresh(i int) string {
+	if i == 0 {
+		return ""
+	}
+	return fmt.Sprintf("-%d", i+1)
 }
 
 func put(t *testing.T, dir, name string, raw []byte) {
@@ -80,28 +92,27 @@ func TestAnInboxOthersMayWriteIsSticky(t *testing.T) {
 	}
 }
 
-// TestAFileOfAnotherAnswerIsLeftOutAlone: a name this package does not
-// write, a valid answer under such a name among them, and a file whose body
-// names another approval are counted and left out, and the answer beside them
-// is read with the batch whole.
-func TestAFileOfAnotherAnswerIsLeftOutAlone(t *testing.T) {
+// TestAFileOfNoApprovalAskedIsLeftOutAlone: a name this package does not
+// write, of no approval the read asks about, is counted and left out, and
+// another approval's answer is not read; the answer beside them is read with
+// the batch whole.
+func TestAFileOfNoApprovalAskedIsLeftOutAlone(t *testing.T) {
 	dir := inboxDir(t, 0o750)
-	put(t, dir, "APPROVAL1.alice.answer", answerFile(t, "APPROVAL1"))
-	put(t, dir, "APPROVAL1.other.answer", answerFile(t, "APPROVAL2"))
-	put(t, dir, "APPROVAL2.alice.answer", answerFile(t, "APPROVAL2"))
+	put(t, dir, ownName, answerFile(t, "APPROVAL1"))
+	put(t, dir, "APPROVAL2.key-1-approve.answer", answerFile(t, "APPROVAL2"))
+	put(t, dir, "APPROVAL2.junk.answer", []byte("junk"))
 	put(t, dir, "notes.txt", []byte("x"))
-	put(t, dir, "APPROVAL1.a.b.answer", answerFile(t, "APPROVAL1"))
+	put(t, dir, "APPROVAL2.a.b.answer", answerFile(t, "APPROVAL2"))
 	in := openInbox(t, dir)
 	batch, err := in.Read(context.Background(), "APPROVAL1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(batch.Envelopes) != 1 || batch.Truncated || batch.Unjudged {
-		t.Fatalf("read %d envelope(s), truncated %v, unjudged %v; want alice's alone, whole", len(batch.Envelopes), batch.Truncated, batch.Unjudged)
+		t.Fatalf("read %d envelope(s), truncated %v, unjudged %v; want key-1's alone, whole", len(batch.Envelopes), batch.Truncated, batch.Unjudged)
 	}
-	got := in.Counts()
-	if got[inbox.InboxForeignName] != 2 || got[inbox.InboxOtherApproval] != 1 {
-		t.Errorf("counts %v; want two foreign names and one answer of another approval", got)
+	if got := in.Counts(); got[inbox.InboxForeignName] != 2 || len(got) != 1 {
+		t.Errorf("counts %v; want two foreign names alone", got)
 	}
 }
 
@@ -115,7 +126,7 @@ type unjudgedPlant struct {
 func unjudgedPlants() map[string]unjudgedPlant {
 	return map[string]unjudgedPlant{
 		"a link": {func(t *testing.T, dir, name string) {
-			if err := os.Symlink(filepath.Join(dir, "APPROVAL1.alice.answer"), filepath.Join(dir, name)); err != nil {
+			if err := os.Symlink(filepath.Join(dir, ownName), filepath.Join(dir, name)); err != nil {
 				t.Fatal(err)
 			}
 		}, inbox.InboxNotRegular},
@@ -145,12 +156,12 @@ func unjudgedPlants() map[string]unjudgedPlant {
 // TestAnAnswerFileTheInboxCannotReadUnjudgesTheBatch: a link, a pipe, a file
 // of junk at the bound, one over it, and one the plane may not read, each
 // named for the approval, may be the rejection that wins, so the batch is
-// unjudged and counted under its cause; alone, alice's answer is judged.
+// unjudged and counted under its cause; alone, key-1's answer is judged.
 func TestAnAnswerFileTheInboxCannotReadUnjudgesTheBatch(t *testing.T) {
 	for name, c := range unjudgedPlants() {
 		t.Run(name, func(t *testing.T) {
 			dir := inboxDir(t, 0o750)
-			put(t, dir, "APPROVAL1.alice.answer", answerFile(t, "APPROVAL1"))
+			put(t, dir, ownName, answerFile(t, "APPROVAL1"))
 			in := openInbox(t, dir)
 			if batch, err := in.Read(context.Background(), "APPROVAL1"); err != nil || batch.Unjudged || len(batch.Envelopes) != 1 {
 				t.Fatalf("alone: %d envelope(s), unjudged %v, %v", len(batch.Envelopes), batch.Unjudged, err)
@@ -173,7 +184,11 @@ func TestTheInboxBoundsTruncateTheBatch(t *testing.T) {
 	for n, truncated := range map[int]bool{inbox.MaxAnswersPerApproval: false, inbox.MaxAnswersPerApproval + 1: true} {
 		dir := inboxDir(t, 0o750)
 		for i := range n {
-			put(t, dir, fmt.Sprintf("APPROVAL1.op%02d.answer", i), answerFile(t, "APPROVAL1"))
+			if i < inbox.MaxAnswersPerApproval {
+				put(t, dir, fmt.Sprintf("APPROVAL1.key-1-approve%s.answer", fresh(i)), answerFile(t, "APPROVAL1"))
+				continue
+			}
+			put(t, dir, "APPROVAL1.key-1-reject.answer", envelopeOf(t, approvals.DecisionReject, "key-1", nil))
 		}
 		batch, err := openInbox(t, dir).Read(context.Background(), "APPROVAL1")
 		if err != nil {

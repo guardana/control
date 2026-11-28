@@ -140,9 +140,8 @@ func TestASignedHoldTakesNoClaim(t *testing.T) {
 }
 
 // TestASignedAnswerRefusesAndFilesNothing: a key file the group may read, an
-// approval the directory does not hold, a hold under the directory
-// authority, and an answer file of the same name already filed each refuse,
-// and the inbox is left as it was.
+// approval the directory does not hold and a hold under the directory
+// authority each refuse, and the inbox is left as it was.
 func TestASignedAnswerRefusesAndFilesNothing(t *testing.T) {
 	for name, c := range map[string]struct {
 		arrange func(t *testing.T, keyFile, inbox, dir string) (id string)
@@ -156,12 +155,6 @@ func TestASignedAnswerRefusesAndFilesNothing(t *testing.T) {
 		}, "--key"},
 		"an approval the directory does not hold": {func(*testing.T, string, string, string) string { return "NOSUCH" },
 			"no record under that approval id"},
-		"an answer of that name filed already": {func(t *testing.T, keyFile, inbox, dir string) string {
-			if code, _, stderr := invoke(t, "approvals", "approve", "--key", keyFile, "--inbox", inbox, dir, waitingID); code != exitOK {
-				t.Fatalf("the first answer: %d %q", code, stderr)
-			}
-			return waitingID
-		}, "owned by uid"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir, plane := signedStore(t)
