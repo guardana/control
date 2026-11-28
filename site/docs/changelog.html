@@ -144,8 +144,8 @@ verify one.</p>
 <li><code>guardana-gateway doctor</code> now fails its <code>upstreams</code> check, in every mode
 (<code>OBSERVE</code> included), when a tool name is listed more than once, within or
 across upstreams. It names each (<code>&lt;name&gt; is listed more than once, so a call to it is unclassified</code>) and counts them on the check line (<code>N tool name(s) listed more than once</code>). Names from withheld definitions print as <code>&lt;withheld name&gt;</code>, here and for unclassified tools, since they may hold the scan's
-configured value. Before, <code>doctor</code> passed the check while the plane refused
-calls to that tool.</li>
+configured value. Before, <code>doctor</code> passed the check while the plane treated
+calls to that tool as unclassified.</li>
 </ul>
 <h2 id="0191---2026-11-27"><a href="https://github.com/guardana/control/releases/tag/v0.19.1">0.19.1</a> - 2026-11-27</h2>
 <p>Upgrading from 0.18 changes requirements across several tools, and more under

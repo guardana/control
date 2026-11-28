@@ -19,8 +19,8 @@ verify one.
   to it is unclassified`) and counts them on the check line (`N tool name(s)
   listed more than once`). Names from withheld definitions print as `<withheld
   name>`, here and for unclassified tools, since they may hold the scan's
-  configured value. Before, `doctor` passed the check while the plane refused
-  calls to that tool.
+  configured value. Before, `doctor` passed the check while the plane treated
+  calls to that tool as unclassified.
 
 ## [0.19.1] - 2026-11-27
 
