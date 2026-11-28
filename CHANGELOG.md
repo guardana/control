@@ -29,6 +29,7 @@ verify one.
   collector's socket in that directory accepted connections from any account, so
   another local account could read the credential and send events the collector
   kept as the plane's evidence.
+
 ### Fixed
 
 - `policy renew --out <file>` judges `--out` again if another renew replaces
