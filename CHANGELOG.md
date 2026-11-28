@@ -14,11 +14,13 @@ verify one.
 ### Fixed
 
 - `guardana-gateway doctor` now fails its `upstreams` check, in every mode
-  (`OBSERVE` included), when two or more upstreams list the same tool name. It
-  names each such tool (`<name> is listed by more than one upstream, so no
-  call to it can be routed`) and counts them on the check line. Before,
-  `doctor` passed the check while every call to that tool failed; the plane
-  already refused it.
+  (`OBSERVE` included), when a tool name is listed more than once, within or
+  across upstreams. It names each (`<name> is listed more than once, so a call
+  to it is unclassified`) and counts them on the check line (`N tool name(s)
+  listed more than once`). Names from withheld definitions print as `<withheld
+  name>`, here and for unclassified tools, since they may hold the scan's
+  configured value. Before, `doctor` passed the check while the plane refused
+  calls to that tool.
 
 ## [0.19.1] - 2026-11-27
 
