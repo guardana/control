@@ -54,6 +54,9 @@ const (
 	InboxUnremoved     = "unremoved"
 )
 
+// ErrNotAnEnvelope is a file FiledEnvelope could not read as one envelope.
+const ErrNotAnEnvelope Error = "inbox: the file is not one readable envelope"
+
 // ErrInboxPermissions is an inbox a group or the world may write that is not
 // sticky, so any writer could remove or replace another's answer.
 const ErrInboxPermissions Error = "inbox: the inbox may be written by others and is not sticky"
@@ -293,40 +296,63 @@ func ignoreEOF(err error) error {
 // authenticator then holds the body's key to the signing key, so a file
 // that authenticates sits under its signer's own label.
 func (in *Inbox) readAnswer(name, approvalID string) (_ policy.StatementEnvelope, ok, unjudged bool) {
-	refuse := func(cause string) (policy.StatementEnvelope, bool, bool) {
+	env, cause := in.readEnvelope(name)
+	if cause == "" {
+		cause = unbound(env, name, approvalID)
+	}
+	if cause != "" {
 		in.counts[cause]++
 		return policy.StatementEnvelope{}, false, true
 	}
+	return env, true, false
+}
+
+// FiledEnvelope reads the envelope filed under name, refusing a file that
+// is not a regular one, a link among them, is over MaxAnswerFileBytes or is
+// no envelope. It neither verifies the envelope nor counts a refusal.
+func (in *Inbox) FiledEnvelope(name string) (policy.StatementEnvelope, error) {
+	if in == nil || in.root == nil {
+		return policy.StatementEnvelope{}, approvals.ErrClosed
+	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	env, cause := in.readEnvelope(name)
+	if cause != "" {
+		return policy.StatementEnvelope{}, fmt.Errorf("%w: %s is %s", ErrNotAnEnvelope, name, cause)
+	}
+	return env, nil
+}
+
+// readEnvelope reads the file at name as one envelope, bounded and without
+// following a link, and returns the cause it could not, or "".
+func (in *Inbox) readEnvelope(name string) (policy.StatementEnvelope, string) {
 	info, err := in.root.Lstat(name)
 	switch {
 	case err != nil:
-		return refuse(InboxUnreadable)
+		return policy.StatementEnvelope{}, InboxUnreadable
 	case !info.Mode().IsRegular():
-		return refuse(InboxNotRegular)
+		return policy.StatementEnvelope{}, InboxNotRegular
 	}
 	f, err := in.root.OpenFile(name, os.O_RDONLY|nonBlocking, 0)
 	if err != nil {
-		return refuse(InboxUnreadable)
+		return policy.StatementEnvelope{}, InboxUnreadable
 	}
 	defer func() { _ = f.Close() }()
 	if opened, err := f.Stat(); err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
-		return refuse(InboxNotRegular)
+		return policy.StatementEnvelope{}, InboxNotRegular
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, MaxAnswerFileBytes+1))
 	switch {
 	case err != nil:
-		return refuse(InboxUnreadable)
+		return policy.StatementEnvelope{}, InboxUnreadable
 	case len(raw) > MaxAnswerFileBytes:
-		return refuse(InboxTooLarge)
+		return policy.StatementEnvelope{}, InboxTooLarge
 	}
 	env, err := policykey.ParseEnvelope(raw, MaxAnswerFileBytes)
 	if err != nil {
-		return refuse(InboxMalformed)
+		return policy.StatementEnvelope{}, InboxMalformed
 	}
-	if cause := unbound(env, name, approvalID); cause != "" {
-		return refuse(cause)
-	}
-	return env, true, false
+	return env, ""
 }
 
 // unbound is the cause env, filed under name, is not an answer to approvalID

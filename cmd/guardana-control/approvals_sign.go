@@ -48,12 +48,12 @@ func signAnswer(command, decision string, ans answer, dir, id string, stdout, st
 		writeLine(stderr, brand.CLI+": "+command+": this account owns the approvals directory, which is the plane's account: "+
 			"an answer it signs separates nothing, since the plane's account can then sign as this operator; sign from an operator's own account")
 	}
-	name, taken, err := fileInInbox(ans.inbox, a, raw)
+	name, taken, err := fileInInbox(ans.inbox, a, raw, publicHalf(key))
 	if err != nil {
 		return failHinted(stderr, command, fmt.Errorf("--inbox %s: %w", oneLine(ans.inbox), err))
 	}
 	if taken != "" {
-		writeLine(stderr, brand.CLI+": "+command+": "+oneLine(taken)+" is held by another account's file ("+
+		writeLine(stderr, brand.CLI+": "+command+": "+oneLine(taken)+" is held by a file that is not this answer ("+
 			oneLine(ownerText(filepath.Join(ans.inbox, taken)))+"); the answer is filed as "+oneLine(name)+" instead")
 	}
 	lines := "approval " + oneLine(a.ApprovalID) + ": " + a.Decision + " signed by key " + a.KeyID + "\n" +
@@ -108,13 +108,14 @@ func signedAnswerFile(a approvals.Answer, key ed25519.PrivateKey) ([]byte, error
 // in for that account through it.
 var ownedHere = ownedByCaller
 
-// fileInInbox files raw, the answer a, in the inbox at dir under the first
-// label of a's that no file holds, and returns that name and the first name,
-// where it was taken. Any account that may write the inbox can take a name,
-// so another account's file is passed over; a file this account owns is its
-// own earlier answer, and the answer is refused as filed. Once every label is
-// taken the answer is refused, naming the account that owns the first.
-func fileInInbox(dir string, a approvals.Answer, raw []byte) (name, taken string, err error) {
+// fileInInbox files raw, the answer a signed by pub, in the inbox at dir
+// under the first label of a's that no file holds, and returns that name and
+// the first name, where it was taken. Any account that may write the inbox can
+// take a name, and can hard-link any file this account owns there, so a file
+// is passed over unless this account owns it and it is a's answer filed
+// earlier, which refuses the answer as filed. Once every label is taken the
+// answer is refused, naming the account that owns the first.
+func fileInInbox(dir string, a approvals.Answer, raw []byte, pub ed25519.PublicKey) (name, taken string, err error) {
 	in, err := inbox.OpenInbox(dir)
 	if err != nil {
 		return "", "", err
@@ -131,13 +132,30 @@ func fileInInbox(dir string, a approvals.Answer, raw []byte) (name, taken string
 			return next, taken, nil
 		case !errors.Is(fileErr, approvals.ErrAnswerFiled):
 			return "", "", fileErr
-		case ownedHere(filepath.Join(dir, next)):
+		case ownedHere(filepath.Join(dir, next)) && filedEarlier(in, next, a, pub):
 			return "", "", fmt.Errorf("%w: %s is this account's own, filed earlier", approvals.ErrAnswerFiled, next)
 		case taken == "":
 			taken = next
 		}
 	}
 	return "", "", fmt.Errorf("%w: every name this answer may take is held, and %s is %s", approvals.ErrAnswerFiled, taken, ownerText(filepath.Join(dir, taken)))
+}
+
+// filedEarlier reports whether the file at name in in is a's answer filed
+// earlier: one envelope of the answer payload type, its one signature
+// verifying under pub, whose body is pub's answer to a's approval with a's
+// decision. A file that cannot be read as one is not.
+func filedEarlier(in *inbox.Inbox, name string, a approvals.Answer, pub ed25519.PublicKey) bool {
+	env, err := in.FiledEnvelope(name)
+	if err != nil || env.PayloadType != operators.AnswerPayloadType || len(env.Signatures) != 1 {
+		return false
+	}
+	sig := env.Signatures[0]
+	if bundle.VerifyBytesAs(operators.AnswerPayloadType, env.Payload, sig.Signature, sig.KeyID, bundle.Keyring{a.KeyID: pub}) != nil {
+		return false
+	}
+	earlier, err := approvals.ReadAnswer(env.Payload)
+	return err == nil && earlier.KeyID == a.KeyID && earlier.ApprovalID == a.ApprovalID && earlier.Decision == a.Decision
 }
 
 // failHinted is fail with what an operator can do about the refusal.
