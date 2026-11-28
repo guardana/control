@@ -8,6 +8,12 @@ Builds on [ADR-0073](0073-an-approval-counts-only-as-the-plane-judges-it.md),
 [ADR-0076](0076-a-signed-plane-takes-a-run-only-from-an-operators-signature.md)
 and [ADR-0077](0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md).
 
+Amended by [ADR-0089](0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md):
+under `directory` and `memory` too, a plane serves one tenant and at load
+refuses a `listener.principal.tenant_id` that differs from `tenant_id`.
+The plane holds an approval claim, the pause file and the route to its tenant
+and project.
+
 ## Context
 
 Under `approvals.authority: signed` each operator-signed file a plane takes

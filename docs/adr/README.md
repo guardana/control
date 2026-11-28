@@ -97,3 +97,7 @@ request with `Status: proposed`, and set it to `accepted` when it merges.
 | [0086](0086-controlled-attempts-are-counted-at-the-victim.md) | Controlled attempts are counted at the victim, by an executor of their own |
 | [0087](0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md) | A candidate policy is compared through the kernel's own evaluation, and what a case cannot show stays unknown |
 | [0088](0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md) | A verdict that compares two events' times is at most suspected |
+| [0089](0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md) | Outside signed, every receiver holds its input to the plane's one tenant and project |
+| [0090](0090-a-listener-authenticator-names-the-principal-a-stop-and-a-pause-match.md) | A listener authenticator names the principal a stop and a pause match |
+| [0091](0091-the-record-log-port-moves-to-its-consumers-with-a-read-interface.md) | The record log port moves to its consumers, with a read interface |
+| [0092](0092-the-observation-and-finding-logs-are-segment-logs-of-one-project.md) | The observation and finding logs are segment logs of one project |

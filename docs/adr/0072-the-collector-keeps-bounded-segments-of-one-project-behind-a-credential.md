@@ -22,6 +22,14 @@ Amended by [ADR-0080](0080-evidence-leaves-a-plane-over-a-unix-socket-or-tls.md)
 plaintext TCP is refused, `collect` listens on a unix socket only, and a
 collector on another host is reached over TLS.
 
+Amended by [ADR-0091](0091-the-record-log-port-moves-to-its-consumers-with-a-read-interface.md):
+`internal/recordlog` declares the RecordLog port with a write side and a read
+side. `internal/segmentlog` is its `segments` kind.
+
+Amended by [ADR-0092](0092-the-observation-and-finding-logs-are-segment-logs-of-one-project.md):
+the observation and finding logs are segment logs too, under manifest `0.2`,
+which adds `log_id`. The evidence trail keeps manifest `0.1`.
+
 ## Context
 
 `collect` appended everything it received to one file that never rotated, and
