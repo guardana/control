@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ADR-0089: Outside signed, every receiver holds its input to the plane&#39;s one tenant and project · Guardana Control</title>
+<meta name="description" content="Decision record, proposed."/>
+<link rel="canonical" href="https://control.guardana.dev/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project"/>
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)"/>
+<meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)"/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
+<link rel="stylesheet" href="/assets/control/v2/tokens.css"/>
+<link rel="stylesheet" href="/assets/control/control.css"/>
+<link rel="stylesheet" href="/assets/control/docs.css"/>
+</head>
+<body class="doc">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="w">
+  <a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a>
+  <a class="vlink" href="https://github.com/guardana/control/releases/tag/v0.19.1"><span class="ver">v0.19.1</span></a>
+  <nav class="links" aria-label="Primary"><a href="/#how">How it works</a><a href="/#signed">Signed</a><a href="/#get">What you get</a><a href="/#start">Quickstart</a><a href="/#limits">Limits</a><a href="/docs/">Docs</a></nav>
+  <div class="right">
+    <input type="checkbox" id="theme" aria-label="Switch between light and dark"/><label class="tgl" for="theme" title="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg></label>
+    <a class="btn s sm" href="https://github.com/guardana/control">Star on GitHub</a>
+  </div>
+</div></header>
+<div class="w shell">
+<details class="mnav">
+<summary>Menu · <b>ADR-0089: Outside signed, every receiver holds its input to the plane&#39;s one tenant and project</b></summary>
+<nav class="inner" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo">Try the rest of the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
+<li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/set-up-signed-operators">Set up signed operators</a></li>
+<li><a href="/docs/guides/supervise-and-stop-a-run">Supervise and stop a run</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations">Signed operations</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+<li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/channels">Channels</a></li>
+<li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/egress-access-log">Egress access log</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/versions">Format versions</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+<li><a href="/docs/extending/runtime-profiles">Adding a coding runtime&#39;s hooks</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/adoption-and-incident-workflows">Adoption and incident workflows</a></li>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</details>
+<main id="main" class="prose">
+<h1 id="adr-0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project">ADR-0089: Outside signed, every receiver holds its input to the plane's one tenant and project</h1>
+<p>Status: proposed
+Date: 2026-11-27</p>
+<p>Amends <a href="/docs/adr/0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant">ADR-0082</a>
+on &quot;directory and memory are unchanged&quot;.
+Amends <a href="/docs/adr/0046-a-finding-stops-one-run-through-a-signed-route">ADR-0046</a>
+on the route under <code>reaction.public_key</code>.
+Amends <a href="/docs/adr/0083-a-finding-may-stop-an-agent-or-a-principal">ADR-0083</a>
+on agent and principal scopes, which it opens outside <code>signed</code>.
+Amends <a href="/docs/adr/0019-an-operator-can-pause-calls">ADR-0019</a> on the unsigned pause
+file.</p>
+<h2 id="context">Context</h2>
+<p>Under <code>approvals.authority: signed</code> each file or answer a plane accepts is
+held to the plane's tenant and project (contracts.md &quot;Signed files and their
+project checks&quot;). Under <code>directory</code> and <code>memory</code> they are not:</p>
+<ul>
+<li>an approval claim in <code>approvals.dir</code> is matched by request id and approval id
+only; the approvals record of format <code>2.1</code> already carries <code>authority</code>,
+<code>tenant</code> and <code>project</code>, written by the plane when it holds the call, but
+the plane never compares them; a <code>2.0</code> record names neither;</li>
+<li>the unsigned pause file (versions <code>1</code> and <code>2</code>) names no tenant, project or
+plane, so every plane that reads the path takes it;</li>
+<li>the route a plane takes under <code>reaction.public_key</code> (<code>reaction-route/v1alpha1</code>)
+names a tenant but no project, so one route key speaks for every project
+of that tenant; its stop lines (list version <code>1.0</code>) name no project and its
+scope is <code>run</code> only;</li>
+<li>run records already resolve only for the plane's project and the listener's
+tenant.</li>
+</ul>
+<p>Outside <code>signed</code> a plane judges answers and pauses under <code>tenant_id</code> and runs
+and stops under the listener's tenant (<code>listener.principal.tenant_id</code> where
+set), so two tenants can meet on one plane. Outside <code>signed</code> there is no
+operator identity: write access to the directory or the file is the
+authority.</p>
+<h2 id="decision">Decision</h2>
+<ul>
+<li>One tenant under every authority: a <code>listener.principal.tenant_id</code> that is
+set and differs from <code>tenant_id</code> is refused at load, naming both keys, under
+<code>directory</code> and <code>memory</code> as under <code>signed</code>.</li>
+<li>A claim counts only if its record names the hold's tenant, the hold's
+project and the <code>directory</code> authority. The plane compares them with its own
+record of the hold. A claim that differs, and a record of format <code>2.0</code>, which
+names neither, are no answer the plane can judge: the hold stands and the
+call is <code>INDETERMINATE</code>, as for an unreadable signed answer. The approvals CLI
+and the console change nothing: they already copy the record.</li>
+<li>The unsigned pause file moves to <code>schema_version</code> <code>5</code> and names <code>tenant</code>
+(the plane's <code>tenant_id</code>) and <code>project</code>. A plane reads a file of another
+tenant or project as unknown, as an unreadable file is. Versions <code>1</code> and
+<code>2</code> are refused, naming <code>pause init --tenant --project &lt;file&gt;</code>, the one
+command that reads a version <code>2</code> file and rewrites it as version <code>5</code>.
+Version numbers are not shared with the signed pause file (<code>3</code> is its
+carry-only version, <code>4</code> its current one).</li>
+<li>Outside <code>signed</code>, the route under <code>reaction.public_key</code> is
+<code>reaction-route/v1alpha4</code>, signed by that key. It names <code>route_id</code>, <code>serial</code>,
+<code>tenant_id</code>, <code>project_id</code>, <code>lift_public_key</code> and <code>rules</code>; each rule names a
+<code>scope</code> of <code>run</code>, <code>agent</code> or <code>principal</code>, and <code>agent</code> and <code>principal</code> require
+<code>expires_seconds</code> and are taken only for <code>REPEATED_DENIAL</code> version <code>2</code>, the
+one rule <a href="/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected">ADR-0088</a>
+lets stop an agent or a principal. Its list is version <code>4.0</code>: the header keeps the
+members of <code>1.0</code>, since the route digest commits to the project; <code>stop</code> and
+<code>covered</code> lines add <code>project_id</code>, <code>scope</code> and <code>subject</code>; a lift line names
+<code>scope</code>, <code>subject</code> and <code>through_line</code> and holds a <code>reaction-lift/v1alpha4</code>
+envelope <code>{list_id, route_digest, scope, subject, through_line}</code> signed by
+the route's lift key. A plane refuses a route, stop or lift of another
+tenant or project. <code>v1alpha1</code> routes and <code>1.0</code> lists are refused, naming
+<code>route sign</code> and <code>stops init</code>; nothing is carried from them.</li>
+<li>Each format keeps one signer: <code>v1alpha3</code> stays the signed authority's,
+signed by roster operators.</li>
+<li>Reads: outside <code>signed</code> the read boundary is the file mode, with one
+directory per project. A receiver is a part of the plane that takes an
+input as authority; each refuses another tenant's or project's input.
+Operator listings add no filters: anyone who can read the directory can
+read its files.</li>
+<li><code>contracts.md</code> gains the rows for these receivers outside <code>signed</code>, each
+with the test that refuses another project's input, pinned by the docs
+check.</li>
+</ul>
+<h2 id="security--compatibility-impact">Security / compatibility impact</h2>
+<p>Every break fails closed and names its way forward. Two tenants under
+<code>directory</code> or <code>memory</code>: refused at load; set the listener's tenant to
+<code>tenant_id</code> or remove it. A <code>2.0</code> approval record: the hold is <code>INDETERMINATE</code>
+until it expires within <code>approvals.ttl</code>.</p>
+<p>Pause file <code>1</code> or <code>2</code>: pause state unknown, so material calls are blocked
+until <code>pause init --tenant --project</code> rewrites it. A <code>v1alpha1</code> route or a
+<code>1.0</code> list: stop state unknown, so material calls are blocked; with the plane
+stopped, <code>route sign</code> a <code>v1alpha4</code> route, <code>stops init</code>, and <code>react</code> again; a
+stop that was lifted under the old list is stopped again, which errs on the
+blocking side, and the operator lifts it again.</p>
+<p>What this does not do: under <code>directory</code> write access to the approvals
+directory, the pause file or the route file is still the authority, and no
+operator is identified; a comparison of tenant and project catches a claim
+filed for another hold or a directory switched to another project, not a
+writer of the directory, who can write any bytes. The boundary stays the
+plane's exclusive lock on its approvals directory, its owner and its mode.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<ul>
+<li>Reusing <code>v1alpha3</code> outside <code>signed</code> under the route key: it needs <code>plane_id</code>,
+which ADR-0082 refuses outside <code>signed</code>; it names no lift key; its header
+and lift are signed by roster operators, and one format would carry two
+trust models chosen by configuration.</li>
+<li>Keeping <code>v1alpha1</code> with a documented rule of one route key per project: no
+project or scope on a line; an agent stop would cross projects.</li>
+<li>Keeping two tenants and teaching every receiver and the restore both: every
+receiver would carry two tenants for good.</li>
+<li>Adding project filters to <code>approvals list</code>, <code>runs list</code> and the console
+(decoration: file access already decides who reads).</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<p>Operators of <code>directory</code> and <code>memory</code> planes migrate a pause file, a route and
+a stop list once; the changelog names each break; an upgrade guide shows the
+steps. The reaction package gains one route format, one list version and one
+lift kind.</p>
+<h2 id="validation">Validation</h2>
+<p>A directory claim of another hold's tenant, project or authority, and a <code>2.0</code>
+record, are unreadable, with a matching claim as the negative control; a
+version <code>5</code> pause file of another project is unknown; a <code>v1alpha4</code> stop of
+another project's agent is refused; versions <code>1</code> and <code>2</code> and <code>v1alpha1</code> are
+refused naming their commands; the load refuses two tenants under every
+authority; the pause file's versions are distinct across the unsigned and
+the signed kinds; <code>contracts.md</code>'s rows are pinned by the docs check.</p>
+<p class="src">Rendered from <a href="https://github.com/guardana/control/blob/main/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md">docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md</a> on <code>main</code>. It describes the tree as it is now; a release's notes say what a tag holds. The latest release is v0.19.1, and <a href="https://github.com/guardana/control/tree/v0.19.1/docs">its documentation</a> is in its tag.</p>
+</main>
+<nav class="side" aria-label="Documentation">
+<ul class="home"><li><a href="/docs/">Overview</a></li></ul>
+<h2>Get started</h2><ul>
+<li><a href="/docs/get-started/try-the-demo">Try the demo</a></li>
+<li><a href="/docs/get-started/try-the-rest-of-the-demo">Try the rest of the demo</a></li>
+</ul>
+<h2>Guides</h2><ul>
+<li><a href="/docs/guides/back-up-and-restore-a-plane">Back up and restore a plane</a></li>
+<li><a href="/docs/guides/check-a-security-testing-agent">Check a security-testing agent&#39;s calls against a scope you declare</a></li>
+<li><a href="/docs/guides/compare-a-candidate-policy">Compare a candidate policy</a></li>
+<li><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an existing MCP setup</a></li>
+<li><a href="/docs/guides/count-controlled-attempts">Count controlled attempts</a></li>
+<li><a href="/docs/guides/decide-a-tool-of-your-own">Decide a tool of your own</a></li>
+<li><a href="/docs/guides/keep-two-tasks-apart">Keep two tasks apart</a></li>
+<li><a href="/docs/guides/let-a-decision-point-veto">Let a decision point veto calls</a></li>
+<li><a href="/docs/guides/read-the-evidence-from-a-program">Read the evidence from a program</a></li>
+<li><a href="/docs/guides/run-in-a-container">Run the gateway in a container</a></li>
+<li><a href="/docs/guides/run-the-gateway">Run the gateway</a></li>
+<li><a href="/docs/guides/set-up-signed-operators">Set up signed operators</a></li>
+<li><a href="/docs/guides/supervise-and-stop-a-run">Supervise and stop a run</a></li>
+<li><a href="/docs/guides/test-a-procedure">Test a procedure</a></li>
+<li><a href="/docs/guides/troubleshoot-a-plane">Troubleshoot a plane</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-17">Upgrade a plane from 0.17</a></li>
+<li><a href="/docs/guides/upgrade-a-plane-from-0-18">Upgrade a plane from 0.18</a></li>
+<li><a href="/docs/guides/watch-a-plane-without-a-collector">Watch a plane without a collector</a></li>
+<li><a href="/docs/guides/watch-an-egress-proxy">Watch an egress proxy</a></li>
+<li><a href="/docs/guides/write-and-test-a-policy">Write and test a policy</a></li>
+</ul>
+<h2>Concepts</h2><ul>
+<li><a href="/docs/concepts/agent-tool-call-controls">Which tools check AI agent tool calls against policy?</a></li>
+<li><a href="/docs/concepts/approvals-and-the-held-call">Approvals and the held request</a></li>
+<li><a href="/docs/concepts/architecture">Architecture</a></li>
+<li><a href="/docs/concepts/control-and-supervision">Control and supervision</a></li>
+<li><a href="/docs/concepts/enforcement-modes">Enforcement modes</a></li>
+<li><a href="/docs/concepts/evidence-and-the-spool">Evidence and the spool</a></li>
+<li><a href="/docs/concepts/glossary">Glossary</a></li>
+<li><a href="/docs/concepts/how-a-call-is-decided">How a call is decided</a></li>
+<li><a href="/docs/concepts/mcp-gateway">The MCP gateway</a></li>
+<li><a href="/docs/concepts/observations-coverage-and-supervision">Observations, coverage, supervision and a stop</a></li>
+<li><a href="/docs/concepts/privacy">Privacy</a></li>
+<li><a href="/docs/concepts/signed-operations">Signed operations</a></li>
+<li><a href="/docs/concepts/threat-model">Threat model</a></li>
+<li><a href="/docs/concepts/where-it-fits">Where it fits</a></li>
+</ul>
+<h2>Reference</h2><ul>
+<li><a href="/docs/reference/attempt-format">Attempt format</a></li>
+<li><a href="/docs/reference/benchmarks">Benchmarks</a></li>
+<li><a href="/docs/reference/channels">Channels</a></li>
+<li><a href="/docs/reference/claude-code-hooks">Claude Code hooks</a></li>
+<li><a href="/docs/reference/cli">Command line</a></li>
+<li><a href="/docs/reference/configuration">Configuration</a></li>
+<li><a href="/docs/reference/console">The approvals page</a></li>
+<li><a href="/docs/reference/coverage">Coverage</a></li>
+<li><a href="/docs/reference/dev">Dev mode</a></li>
+<li><a href="/docs/reference/egress-access-log">Egress access log</a></li>
+<li><a href="/docs/reference/failure-modes">Failure modes</a></li>
+<li><a href="/docs/reference/mcp-coverage">MCP enforcement coverage</a></li>
+<li><a href="/docs/reference/metrics">Metrics</a></li>
+<li><a href="/docs/reference/obligations">Obligations</a></li>
+<li><a href="/docs/reference/observations">Observations</a></li>
+<li><a href="/docs/reference/policy-compare">Policy compare</a></li>
+<li><a href="/docs/reference/policy-explain">Policy explain</a></li>
+<li><a href="/docs/reference/policy-format">Policy document format</a></li>
+<li><a href="/docs/reference/reaction-signed">Signed reaction</a></li>
+<li><a href="/docs/reference/reaction">Reaction</a></li>
+<li><a href="/docs/reference/reason-codes">Reason codes</a></li>
+<li><a href="/docs/reference/risks/advisories">Advisories on agentic attacks</a></li>
+<li><a href="/docs/reference/risks/owasp-agentic-top-10">OWASP Top 10 for Agentic Applications</a></li>
+<li><a href="/docs/reference/risks/owasp-llm-top-10">OWASP Top 10 for LLM Applications</a></li>
+<li><a href="/docs/reference/run-view">Run view</a></li>
+<li><a href="/docs/reference/runs">Runs</a></li>
+<li><a href="/docs/reference/scenario-format">Scenario format</a></li>
+<li><a href="/docs/reference/starter-packs">Starter policy packs</a></li>
+<li><a href="/docs/reference/supervision">Supervision</a></li>
+<li><a href="/docs/reference/versions">Format versions</a></li>
+<li><a href="/docs/reference/wire/action_envelope">action_envelope.proto</a></li>
+<li><a href="/docs/reference/wire/approval">approval.proto</a></li>
+<li><a href="/docs/reference/wire/bundle">bundle.proto</a></li>
+<li><a href="/docs/reference/wire/common">common.proto</a></li>
+<li><a href="/docs/reference/wire/decision">decision.proto</a></li>
+<li><a href="/docs/reference/wire/event">event.proto</a></li>
+<li><a href="/docs/reference/wire/finding">finding.proto</a></li>
+<li><a href="/docs/reference/wire/result">result.proto</a></li>
+</ul>
+<h2>Specification</h2><ul>
+<li><a href="/docs/contracts">Wire contracts</a></li>
+</ul>
+<h2>Extending</h2><ul>
+<li><a href="/docs/extending/adapters">Writing an adapter</a></li>
+<li><a href="/docs/extending/runtime-profiles">Adding a coding runtime&#39;s hooks</a></li>
+</ul>
+<h2>Project</h2><ul>
+<li><a href="/docs/adoption-and-incident-workflows">Adoption and incident workflows</a></li>
+<li><a href="/docs/backlog">Delivery backlog</a></li>
+<li><a href="/docs/changelog">Changelog</a></li>
+<li><a href="/docs/dependencies">Dependencies</a></li>
+<li><a href="/docs/roadmap">Roadmap</a></li>
+<li><a href="/docs/status">Implementation status</a></li>
+<li><a href="/docs/#decision-records">Decision records</a></li>
+</ul>
+</nav>
+</div>
+<footer class="ft"><div class="w">
+  <div class="fb"><a class="logo" href="/"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 4.5 5.6v6.1c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V5.6z"/><path d="M10.2 8.4v7.8M10.2 12.3h5.3"/></svg>Guardana Control</a><p>A control and supervision layer for AI agents. <a href="https://github.com/guardana/control/blob/main/LICENSE">Apache-2.0</a>.</p><p><a href="https://guardana.dev">Guardana</a> and Guardana Control are independent projects. See <a href="https://github.com/guardana/guardana">Guardana on GitHub</a>.</p></div>
+  <div><b>Product</b><a href="/#how">How it works</a><a href="/#get">What you get</a><a href="/#limits">Limits</a><a href="/docs/status">Status</a></div>
+  <div><b>Docs</b><a href="/docs/get-started/try-the-demo">Try the demo</a><a href="/docs/guides/connect-an-existing-mcp-setup">Connect an MCP setup</a><a href="/docs/guides/write-and-test-a-policy">Write a policy</a><a href="/docs/concepts/threat-model">Threat model</a></div>
+  <div><b>Project</b><a href="https://github.com/guardana/control">GitHub</a><a href="https://github.com/guardana/control/releases">Releases</a><a href="/docs/roadmap">Roadmap</a><a href="https://github.com/guardana/control/blob/main/SECURITY.md">Security</a><a href="https://github.com/guardana/control/blob/main/TRADEMARKS.md">Trademarks</a></div>
+</div></footer>
+</body>
+</html>

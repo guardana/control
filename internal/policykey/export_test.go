@@ -7,3 +7,11 @@ func BeforeStatementReplaced(t interface{ Cleanup(func()) }, f func()) {
 	beforeStatementReplaced = f
 	t.Cleanup(func() { beforeStatementReplaced = saved })
 }
+
+// AfterStatementOutLstat sets what runs between a statement write's look at
+// its output and the open of what stands there, for the test's length.
+func AfterStatementOutLstat(t interface{ Cleanup(func()) }, f func()) {
+	saved := afterStatementOutLstat
+	afterStatementOutLstat = f
+	t.Cleanup(func() { afterStatementOutLstat = saved })
+}

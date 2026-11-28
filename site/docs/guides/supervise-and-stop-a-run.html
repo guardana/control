@@ -192,8 +192,7 @@ guardana-control policy state init --kind plane --bundle-id refund-supervision s
 <code>keys/freshness</code>, <code>/absolute/path/to/collect.sock</code> with
 <code>$WORK/examples/refund-supervision/state/collect.sock</code> spelled out, and
 <code>COLLECTOR_UID_FROM_ID</code> with what <code>id -u</code> prints. Make the collector's
-credential, and replace <code>COLLECTOR_CREDENTIAL_FROM_FILE</code> with the content of
-<code>state/collector.credential</code>:</p>
+credential:</p>
 <pre><code>(umask 077 &amp;&amp; od -An -N32 -tx1 /dev/urandom | tr -d &#39; \n&#39; &gt; state/collector.credential)
 </code></pre>
 <h3 id="3-sign-the-route-and-start-the-stop-list">3. Sign the route and start the stop list</h3>
@@ -224,13 +223,15 @@ in a terminal of its own:</p>
 <a href="/docs/guides/watch-a-plane-without-a-collector">watch a plane without a collector</a>.
 First open both runs, as step 5 shows. Then check the configuration; every
 check line should begin <code>ok</code>:</p>
-<pre><code>$ guardana-gateway doctor --config plane.yaml
+<pre><code>$ export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat state/collector.credential)&#34;
+$ guardana-gateway doctor --config plane.yaml
 …
 ok      upstreams     1 upstream(s) answered, 4 tool(s) listed, 4 classified, 0 unclassified
 …
 </code></pre>
 <p>Then start the plane in another terminal:</p>
-<pre><code>$ guardana-gateway run --config plane.yaml
+<pre><code>$ export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat state/collector.credential)&#34;
+$ guardana-gateway run --config plane.yaml
 …
 listening for agents on 127.0.0.1:8080
 answering /healthz, /metrics and /brand on 127.0.0.1:8081

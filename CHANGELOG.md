@@ -11,6 +11,33 @@ verify one.
 
 ## [Unreleased]
 
+### Security
+
+- The guides "Connect an existing MCP setup", "Supervise and stop a run" and
+  "Check a security-testing agent" and the example profiles
+  `examples/connect-a-filesystem-server/plane.yaml` and
+  `examples/refund-supervision/plane.yaml` no longer put the collector's
+  credential in `plane.yaml`, giving it to the plane through the environment
+  variable `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION`, set in each terminal
+  that runs `doctor` or `run` (or in the MCP client's `env` block when the
+  client starts the plane). The connect guide now closes the copied plane
+  directory with `chmod 700` before the collector's socket is made in it. An
+  existing copy of either example keeps its `export.headers` block until you
+  remove it; a key the environment sets is refused under `approvals.authority:
+  signed`. Before, `cp -R` left `plane.yaml` readable by every local account
+  (mode `0644` under the usual umask) with the credential in it, and the
+  collector's socket in that directory accepted connections from any account, so
+  another local account could read the credential and send events the collector
+  kept as the plane's evidence. Run `chmod 700` on the existing plane directory
+  and make a new `collector.credential` (connect guide, step 3), since another
+  local account may have read the old one. A signed plane keeps the new
+  credential under `export.headers` in its configuration, which no other account
+  should read. Outside `approvals.authority: signed`, remove `export.headers`
+  and set `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION` from it. Restart the
+  collector (`guardana-gateway collect`) and the plane with it. Treat trail
+  events the collector received while the old credential sat in a readable
+  `plane.yaml` as possibly sent by another local account.
+
 ### Fixed
 
 - `guardana-gateway doctor` now fails its `upstreams` check, in every mode
@@ -21,6 +48,15 @@ verify one.
   name>`, here and for unclassified tools, since they may hold the scan's
   configured value. Before, `doctor` passed the check while the plane treated
   calls to that tool as unclassified.
+
+- `policy renew --out <file>` judges `--out` again if another renew replaces
+  the file between looking at the path and opening it, as it already did when
+  the file changed at other steps. It replaces an older statement, or keeps a
+  newer one and says that a newer statement for the bundle id is there, which
+  another renew wrote meanwhile. When two runs, each under its own signer floor
+  directory, wrote to the same `--out` at the same moment, one could fail with
+  "the path holds something other than a freshness statement ... it changed
+  while it was judged".
 
 ## [0.19.1] - 2026-11-27
 

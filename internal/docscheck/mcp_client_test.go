@@ -130,3 +130,81 @@ func TestTheMCPClientCheckRunsEveryCommandOfTheGuide(t *testing.T) {
 		}
 	}
 }
+
+// TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide: the guide closes the
+// plane's directory and exports the collector's credential in every code block
+// that runs doctor or the plane, and the check closes the directory, verifies
+// its mode and exports the credential, so neither can drop one without failing
+// here.
+func TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide(t *testing.T) {
+	root := repoRoot(t)
+	guide, err := os.ReadFile(filepath.Join(root, mcpClientGuide)) //nolint:gosec // G304: a path this repository names
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(filepath.Join(root, mcpClientScript)) //nolint:gosec // G304: a path this repository names
+	if err != nil {
+		t.Fatal(err)
+	}
+	variable := regexp.QuoteMeta(brand.Env("EXPORT_HEADERS_AUTHORIZATION"))
+	exported := regexp.MustCompile(`^export ` + variable + `="Bearer \$\(cat collector\.credential\)"$`)
+	if !regexp.MustCompile(`(?m)^chmod 700 ~/files-plane$`).Match(guide) {
+		t.Errorf("%s does not close the plane's directory with chmod 700 ~/files-plane", mcpClientGuide)
+	}
+	if runs := exportedRuns(t, string(guide), exported); runs < 2 {
+		t.Errorf("%s runs doctor and the plane %d time(s) in its code blocks, want both", mcpClientGuide, runs)
+	}
+	for _, line := range []string{
+		`(?m)^chmod 700 "\$\{work\}/plane"$`,
+		`(?m)^\[\[ -n "\$\(find \. -maxdepth 0 -perm 700\)" \]\] \|\| die `,
+		`(?m)^export ` + variable + `$`,
+	} {
+		if !regexp.MustCompile(line).Match(script) {
+			t.Errorf("%s holds no line matching %s", mcpClientScript, line)
+		}
+	}
+}
+
+// exportedRuns counts the doctor and run lines of the guide's code blocks,
+// reporting each one its block does not precede with the export.
+func exportedRuns(t *testing.T, guide string, exported *regexp.Regexp) int {
+	t.Helper()
+	runs := 0
+	for _, block := range codeBlocks(guide) {
+		set := false
+		for _, line := range block {
+			fields := strings.Fields(line)
+			set = set || exported.MatchString(line)
+			if len(fields) > 1 && fields[0] == brand.Gateway && (fields[1] == "doctor" || fields[1] == "run") {
+				runs++
+				if !set {
+					t.Errorf("%s runs %q in a code block that does not first export the credential", mcpClientGuide, line)
+				}
+			}
+		}
+	}
+	return runs
+}
+
+// codeBlocks is each fenced code block of text, as its trimmed lines with a
+// leading "$ " prompt removed.
+func codeBlocks(text string) [][]string {
+	var out [][]string
+	var cur []string
+	fenced := false
+	for _, line := range joinedLines(text) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenced {
+				out = append(out, cur)
+				cur = nil
+			}
+			fenced = !fenced
+			continue
+		}
+		if fenced {
+			cur = append(cur, strings.TrimPrefix(trimmed, "$ "))
+		}
+	}
+	return out
+}

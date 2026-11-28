@@ -10,6 +10,15 @@ causes, under the signed formats of
 [ADR-0077](0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures.md)
 and [ADR-0082](0082-a-signed-document-names-its-plane-and-a-signed-plane-serves-one-tenant.md).
 
+Amended by [ADR-0089](0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md):
+a `reaction-route/v1alpha4` route takes agent and principal scopes outside
+`signed` too.
+
+Amended by [ADR-0090](0090-a-listener-authenticator-names-the-principal-a-stop-and-a-pause-match.md):
+with a `token_file` listener authenticator, a principal stop and a principal
+pause match the principal the listener authenticates. A call with no
+authenticated principal reads an active principal stop as unknown.
+
 ## Context
 
 A confirmed finding stops the run it is about. Some findings describe the
