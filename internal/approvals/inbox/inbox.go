@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/guardana/control/internal/approvals"
 	"github.com/guardana/control/internal/files"
@@ -39,7 +40,8 @@ const (
 // answerSuffix ends the name of every answer file.
 const answerSuffix = ".answer"
 
-// The causes an inbox counts, one per file it left out of a batch.
+// The causes an inbox counts, one per file it left out of a batch or could
+// not judge.
 const (
 	InboxForeignName   = "foreign_name"
 	InboxNotRegular    = "not_regular"
@@ -230,9 +232,12 @@ func (in *Inbox) Read(ctx context.Context, approvalID string) (Batch, error) {
 // list names the files of approvalID, sorted. A name whose approval id is
 // approvalID compared without case, but that is not an answer file name of
 // approvalID as spelled, is counted and makes misnamed true: a volume that
-// folds case may take it as the name an answer needs. Any other name this
-// package does not write is counted and left out. More than MaxInboxEntries
-// names, or more than MaxAnswersPerApproval of approvalID, is truncated.
+// folds case may take it as the name an answer needs. A name holding a byte
+// outside ASCII does the same for every approval id, since a volume may fold
+// or normalize it onto any name, by rules no comparison here reproduces. Any
+// other name this package does not write is counted and left out. More than
+// MaxInboxEntries names, or more than MaxAnswersPerApproval of approvalID, is
+// truncated.
 func (in *Inbox) list(approvalID string) (names []string, misnamed, truncated bool, err error) {
 	d, err := in.root.Open(".")
 	if err != nil {
@@ -250,7 +255,7 @@ func (in *Inbox) list(approvalID string) (names []string, misnamed, truncated bo
 		switch {
 		case written && id == approvalID:
 			names = append(names, e.Name())
-		case dotted && strings.EqualFold(stem, approvalID):
+		case !isASCII(e.Name()), dotted && strings.EqualFold(stem, approvalID):
 			in.counts[InboxMisnamed]++
 			misnamed = true
 		case !written:
@@ -262,6 +267,15 @@ func (in *Inbox) list(approvalID string) (names []string, misnamed, truncated bo
 		names, truncated = names[:MaxAnswersPerApproval], true
 	}
 	return names, misnamed, truncated, nil
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 func ignoreEOF(err error) error {

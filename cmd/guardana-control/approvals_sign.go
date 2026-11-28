@@ -53,7 +53,7 @@ func signAnswer(command, decision string, ans answer, dir, id string, stdout, st
 		return failHinted(stderr, command, fmt.Errorf("--inbox %s: %w", oneLine(ans.inbox), err))
 	}
 	if taken != "" {
-		writeLine(stderr, brand.CLI+": "+command+": "+oneLine(taken)+" was taken by a file this command did not write ("+
+		writeLine(stderr, brand.CLI+": "+command+": "+oneLine(taken)+" is held by another account's file ("+
 			oneLine(ownerText(filepath.Join(ans.inbox, taken)))+"); the answer is filed as "+oneLine(name)+" instead")
 	}
 	lines := "approval " + oneLine(a.ApprovalID) + ": " + a.Decision + " signed by key " + a.KeyID + "\n" +
@@ -104,11 +104,16 @@ func signedAnswerFile(a approvals.Answer, key ed25519.PrivateKey) ([]byte, error
 	})
 }
 
+// ownedHere is ownedByCaller; a test planting another account's file stands
+// in for that account through it.
+var ownedHere = ownedByCaller
+
 // fileInInbox files raw, the answer a, in the inbox at dir under the first
 // label of a's that no file holds, and returns that name and the first name,
 // where it was taken. Any account that may write the inbox can take a name,
-// so a taken one is passed over; once every label is taken the answer is
-// refused, naming the account that owns the first.
+// so another account's file is passed over; a file this account owns is its
+// own earlier answer, and the answer is refused as filed. Once every label is
+// taken the answer is refused, naming the account that owns the first.
 func fileInInbox(dir string, a approvals.Answer, raw []byte) (name, taken string, err error) {
 	in, err := inbox.OpenInbox(dir)
 	if err != nil {
@@ -126,6 +131,8 @@ func fileInInbox(dir string, a approvals.Answer, raw []byte) (name, taken string
 			return next, taken, nil
 		case !errors.Is(fileErr, approvals.ErrAnswerFiled):
 			return "", "", fileErr
+		case ownedHere(filepath.Join(dir, next)):
+			return "", "", fmt.Errorf("%w: %s is this account's own, filed earlier", approvals.ErrAnswerFiled, next)
 		case taken == "":
 			taken = next
 		}

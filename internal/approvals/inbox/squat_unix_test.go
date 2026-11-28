@@ -113,18 +113,35 @@ func TestASquattedAnswerNameUnjudgesTheBatch(t *testing.T) {
 	}
 }
 
-// TestAFoldedApprovalIDIsReadAsTheApprovals: on a volume that folds case
-// beyond ASCII, a name whose approval id folds onto ASK1 takes ASK1's
-// entry, so it unjudges ASK1's batch; ASK2's batch does not see it.
-func TestAFoldedApprovalIDIsReadAsTheApprovals(t *testing.T) {
-	dir := inboxDir(t, 0o750)
-	put(t, dir, "ASK1.key-1-reject.answer", envelopeOf(t, approvals.DecisionReject, "key-1", func(a *approvals.Answer) { a.ApprovalID = "ASK1" }))
-	in := openInbox(t, dir)
-	if batch, err := in.Read(context.Background(), "ASK1"); err != nil || !batch.Unjudged {
-		t.Errorf("ASK1: unjudged %v, %v; want unjudged", batch.Unjudged, err)
-	}
-	if batch, err := in.Read(context.Background(), "ASK2"); err != nil || batch.Unjudged || len(batch.Envelopes) != 0 {
-		t.Errorf("ASK2: %d envelope(s), unjudged %v, %v; want an empty batch, judged", len(batch.Envelopes), batch.Unjudged, err)
+// TestANameOutsideASCIIUnjudgesEveryBatch: a volume may fold a name outside
+// ASCII onto an answer's name by full case folding (ß onto SS, the ligature
+// ﬆ onto ST) or simple folding (the Kelvin sign onto K), which no comparison
+// here reproduces, so such a name unjudges the batch of every approval id;
+// an ASCII name of no approval is left out and unjudges none.
+func TestANameOutsideASCIIUnjudgesEveryBatch(t *testing.T) {
+	for name, folded := range map[string]struct{ id, file string }{
+		"sharp s onto SS":    {"APPROVALSS1", "APPROVAL\u00df1.key-1-reject.answer"},
+		"a ligature onto ST": {"APPROVALST1", "APPROVAL\ufb061.key-1-reject.answer"},
+		"the Kelvin sign":    {"ASK1", "AS\u212a1.key-1-reject.answer"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := inboxDir(t, 0o750)
+			put(t, dir, "notes.txt", []byte("not an answer"))
+			in := openInbox(t, dir)
+			if batch, err := in.Read(context.Background(), folded.id); err != nil || batch.Unjudged {
+				t.Fatalf("%s beside an ASCII name of no approval: unjudged %v, %v; want judged", folded.id, batch.Unjudged, err)
+			}
+			put(t, dir, folded.file, envelopeOf(t, approvals.DecisionReject, "key-1", func(a *approvals.Answer) { a.ApprovalID = folded.id }))
+			for _, id := range []string{folded.id, "OTHER2"} {
+				batch, err := in.Read(context.Background(), id)
+				if err != nil || !batch.Unjudged || len(batch.Envelopes) != 0 {
+					t.Errorf("%s with %q planted: %d envelope(s), unjudged %v, %v; want unjudged", id, folded.file, len(batch.Envelopes), batch.Unjudged, err)
+				}
+			}
+			if got := in.Counts()[inbox.InboxMisnamed]; got != 2 {
+				t.Errorf("counts %v; want misnamed twice, once per read", in.Counts())
+			}
+		})
 	}
 }
 

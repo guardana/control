@@ -15,13 +15,37 @@ import (
 )
 
 // squatted plants junk under each of names in the inbox at dir, as any
-// account that may write the inbox can before an operator answers.
+// account that may write the inbox can before an operator answers; the
+// command reads the files as that other account's.
 func squatted(t *testing.T, dir string, names ...string) {
 	t.Helper()
+	prev := ownedHere
+	ownedHere = func(string) bool { return false }
+	t.Cleanup(func() { ownedHere = prev })
 	for _, name := range names {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("junk"), 0o644); err != nil { //nolint:gosec // G306: an answer file's mode
 			t.Fatal(err)
 		}
+	}
+}
+
+// TestAnAnswerThisAccountFiledIsNotFiledAgain: a second reject by the same
+// operator finds its own earlier answer under the name, is refused as filed
+// and files nothing under a fresh label.
+func TestAnAnswerThisAccountFiledIsNotFiledAgain(t *testing.T) {
+	dir, plane := signedStore(t)
+	hold(t, plane, waitingID, clockNow().Add(15*time.Minute))
+	keyFile, _, box := operatorKey(t)
+	if code, _, stderr := invoke(t, "approvals", "reject", "--key", keyFile, "--inbox", box, "--reason", "no", dir, waitingID); code != exitOK {
+		t.Fatalf("first reject: exit %d, stderr %q", code, stderr)
+	}
+	before := files(t, box)
+	code, stdout, stderr := invoke(t, "approvals", "reject", "--key", keyFile, "--inbox", box, "--reason", "no", dir, waitingID)
+	if code != exitFail || stdout != "" || !strings.Contains(stderr, "this account's own") {
+		t.Errorf("second reject: exit %d, stdout %q, stderr %q; want refused as this account's own answer", code, stdout, stderr)
+	}
+	if after := files(t, box); !maps.Equal(before, after) {
+		t.Errorf("the inbox went from %v to %v; want nothing filed", before, after)
 	}
 }
 
@@ -44,8 +68,8 @@ func TestARejectionWhoseNameIsTakenIsFiledUnderAFreshLabel(t *testing.T) {
 				t.Fatalf("exit %d, stderr %q", code, stderr)
 			}
 			name := waitingID + "." + keyLabel(pub) + want + ".answer"
-			if !strings.Contains(stderr, first) || !strings.Contains(stderr, "did not write") || !strings.Contains(stderr, name) {
-				t.Errorf("stderr %q names neither the taken name, that this command did not write it, nor the fresh one", stderr)
+			if !strings.Contains(stderr, first) || !strings.Contains(stderr, "another account's file") || !strings.Contains(stderr, name) {
+				t.Errorf("stderr %q names neither the taken name, that another account holds it, nor the fresh one", stderr)
 			}
 			if !strings.Contains(stdout, filepath.Join(box, name)) {
 				t.Errorf("stdout %q does not name %s", stdout, name)

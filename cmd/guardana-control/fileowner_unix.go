@@ -21,3 +21,14 @@ func ownerText(path string) string {
 	}
 	return "owned by uid " + strconv.FormatUint(uint64(st.Uid), 10)
 }
+
+// ownedByCaller reports whether this process's effective account owns the
+// file at path, not following a link.
+func ownedByCaller(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	return ok && uint64(st.Uid) == uint64(os.Geteuid())
+}
