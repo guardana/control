@@ -185,6 +185,14 @@ directory, wrote to the same <code>--out</code> at the same moment, one could fa
 while it was judged&quot;.</p>
 </li>
 </ul>
+<h3 id="documentation">Documentation</h3>
+<ul>
+<li>Until 1.0, each release follows a review of the changes since the previous
+release, by a reviewer who did not write them, and a check of the pages those
+changes touch or make suspect. The whole tree is audited once, on the 1.0
+release candidate, instead of before every release
+(<a href="/docs/adr/0052-a-change-is-gated-on-its-pull-request">ADR-0052</a>).</li>
+</ul>
 <h2 id="0191---2026-11-27"><a href="https://github.com/guardana/control/releases/tag/v0.19.1">0.19.1</a> - 2026-11-27</h2>
 <p>Upgrading from 0.18 changes requirements across several tools, and more under
 <code>approvals.authority: signed</code>. <code>collect</code> and <code>prune</code> refuse symlinked trail
@@ -1057,7 +1065,7 @@ another: a scheduled night whose red then went unreported, or a push to
 the gateway's doctor does not report under. Any key but <code>none</code> passed.</p>
 </li>
 </ul>
-<h3 id="documentation">Documentation</h3>
+<h3 id="documentation-1">Documentation</h3>
 <ul>
 <li>The landing page and the documentation pages share one layout: the same
 header, footer and container at every width, every landing section opening
@@ -1252,7 +1260,7 @@ says so. An OpenTelemetry or egress log import whose source fails with an
 error wrapping <code>io.EOF</code>, or one matching a full read buffer, now fails,
 where it ended as a complete import.</li>
 </ul>
-<h3 id="documentation-1">Documentation</h3>
+<h3 id="documentation-2">Documentation</h3>
 <ul>
 <li>Three reading paths on the documentation index, a shorter first tutorial
 with <a href="/docs/get-started/try-the-rest-of-the-demo">a follow-up</a>, and pages

@@ -182,8 +182,22 @@ run under processor load on Linux and macOS. A red night opens an issue.
 not write the changes,
 against the invariants, the roadmap and what the pages claim. A finding is
 verified at its source before it is acted on, and its fix is an ordinary
-change.</li>
+change. Until 1.0, the 0.20 amendment below replaces it.</li>
 </ul>
+<p>Amended in 0.20: until 1.0, before each release, a reviewer who did not write
+the changes reviews what changed since the previous release (the commits
+between the previous release's tag and the release commit) against the
+invariants, the roadmap and what the pages claim. A second check reads each
+page the range touches or that <code>make docs-impact</code> names for the range (the
+Makefile target takes <code>RANGE=&lt;base&gt;..&lt;head&gt;</code>), against the code. A finding is
+still verified at its source, and its fix is still an ordinary change. The
+review a pull request needs is unchanged and is the one
+<a href="https://github.com/guardana/control/blob/main/GOVERNANCE.md">GOVERNANCE.md</a> describes. The whole tree is audited once,
+on the 1.0 release candidate, by a reviewer who wrote none of it. Whole-tree
+audit rounds before 0.19 took most of that release's week, and releases to 1.0
+come about once a week; reviewing each release's range covers what changed, and
+the candidate audit covers the whole. What applies after 1.0 is decided before
+1.0.</p>
 <h2 id="security--compatibility-impact">Security / compatibility impact</h2>
 <p>No product code changes. A commit on <code>main</code> no longer carries proof that the
 gate passed on a maintainer's machine before it left; it carries CI's run on
@@ -192,7 +206,9 @@ Linux. A defect that shows only on macOS is found by the nightly run or by the
 release commit's cold gate, later than before. The checks of a pull request
 still run from its own tree, so a change to a workflow or to the gate is held
 by its review. With one maintainer the admin's own change there has no second
-reviewer and is held by the admin alone, as ADR-0025 already says.</p>
+reviewer and is held by the admin alone, as ADR-0025 already says. Until 1.0,
+a defect in code that no release's range touches is looked for only by the
+whole-tree audit of the 1.0 release candidate.</p>
 <h2 id="alternatives-considered">Alternatives considered</h2>
 <ul>
 <li>A cold local gate for every commit, as before: the strongest evidence for
