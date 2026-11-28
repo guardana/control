@@ -52,8 +52,6 @@ export:
   endpoint: unix:///absolute/path/to/collect.sock
   collector_uid: COLLECTOR_UID_FROM_ID
   linger: 5ms
-  headers:
-    Authorization: Bearer COLLECTOR_CREDENTIAL_FROM_FILE
 
 upstreams:
   - name: orders

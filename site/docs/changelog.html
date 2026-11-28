@@ -139,6 +139,24 @@
 signed and attested from its tag; <a href="https://github.com/guardana/control/blob/main/RELEASING.md">RELEASING.md</a> shows how to
 verify one.</p>
 <h2 id="unreleased"><a href="https://github.com/guardana/control/compare/v0.19.1...HEAD">Unreleased</a></h2>
+<h3 id="security">Security</h3>
+<ul>
+<li>The guides &quot;Connect an existing MCP setup&quot;, &quot;Supervise and stop a run&quot; and
+&quot;Check a security-testing agent&quot; and the example profiles
+<code>examples/connect-a-filesystem-server/plane.yaml</code> and
+<code>examples/refund-supervision/plane.yaml</code> no longer put the collector's
+credential in <code>plane.yaml</code>, giving it to the plane through the environment
+variable <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code>, set in each terminal
+that runs <code>doctor</code> or <code>run</code> (or in the MCP client's <code>env</code> block when the
+client starts the plane). The connect guide now closes the copied plane
+directory with <code>chmod 700</code> before the collector's socket is made in it. An
+existing copy of either example keeps its <code>export.headers</code> block until you
+remove it; a key the environment sets is refused under <code>approvals.authority: signed</code>. Before, <code>cp -R</code> left <code>plane.yaml</code> readable by every local account
+(mode <code>0644</code> under the usual umask) with the credential in it, and the
+collector's socket in that directory accepted connections from any account, so
+another local account could read the credential and send events the collector
+kept as the plane's evidence.</li>
+</ul>
 <h2 id="0191---2026-11-27"><a href="https://github.com/guardana/control/releases/tag/v0.19.1">0.19.1</a> - 2026-11-27</h2>
 <p>Upgrading from 0.18 changes requirements across several tools, and more under
 <code>approvals.authority: signed</code>. <code>collect</code> and <code>prune</code> refuse symlinked trail
@@ -1220,7 +1238,7 @@ was for a signed plane alone, now says what every plane meets in 0.18, and
 its signed steps copy the plane's stop list floor for the operator and make
 the new stops directory before the carry.</li>
 </ul>
-<h3 id="security">Security</h3>
+<h3 id="security-1">Security</h3>
 <ul>
 <li>The filesystem server the MCP client check installs locks <code>hono</code> 4.13.18,
 which fixes GHSA-3gg2-335m-rxc6, GHSA-46wx-v44x-9hh2, GHSA-4h7h-rv7c-7m2v,
@@ -1328,7 +1346,7 @@ symbolic link followed by <code>..</code> is judged where it is read. It no long
 passes a protected file while the plane runs one its own account may
 write.</li>
 </ul>
-<h3 id="security-1">Security</h3>
+<h3 id="security-2">Security</h3>
 <ul>
 <li>Built with Go 1.27.4, which fixes GO-2026-6859 in <code>net/http</code>: a race on
 <code>MaxBytesReader</code>'s header could crash an HTTP/1 server. <code>govulncheck</code>
@@ -1582,7 +1600,7 @@ than <code>approvals.ttl</code> every quarter of <code>approvals.ttl</code> whil
 only at start. A sweep that fails is logged and counted under
 <code>approvals.sweep</code> in <code>/healthz</code>.</li>
 </ul>
-<h3 id="security-2">Security</h3>
+<h3 id="security-3">Security</h3>
 <ul>
 <li>Under <code>approvals.authority: signed</code> any valid rejection wins, a rejection
 counts only from an operator who may approve, whatever time it names. An
@@ -1624,7 +1642,7 @@ counts an egress path as observed by the connections of the sources it names
 Operators can sign a roster of operator keys, though no plane reads it yet
 (<a href="/docs/adr/0071-operators-are-named-by-a-signed-roster">ADR-0071</a>). The
 hook profile's qualification was not run again for this release.</p>
-<h3 id="security-3">Security</h3>
+<h3 id="security-4">Security</h3>
 <ul>
 <li>The filesystem server the guide's MCP client check installs takes <code>glob</code>
 14.0.2, which fixes GHSA-3g3m-2fjr-6pw4, and <code>minimatch</code> 11.0.1, which
@@ -2111,7 +2129,7 @@ a <code>--source</code> of another tenant or project is refused, and <code>cap_a
 is held to the integer range the canonical form writes.
 The project is still alpha, and the <code>0.x</code> series makes no compatibility promise
 between minor versions.</p>
-<h3 id="security-4">Security</h3>
+<h3 id="security-5">Security</h3>
 <ul>
 <li><code>mcp.New</code> refuses an override whose <code>ReturnsTrust</code> or <code>ReturnsSensitivity</code>
 is a number the contract does not declare. Such an override loaded through
@@ -2761,7 +2779,7 @@ run's own calls, so no run can get another one stopped, and a child run can
 now be stopped on its own. <code>procedure lint</code> and <code>procedure test</code> check a
 procedure with cases, and <code>findings export</code> reads the findings log with a
 cursor. The fixes come from an audit of this release's own changes.</p>
-<h3 id="security-5">Security</h3>
+<h3 id="security-6">Security</h3>
 <ul>
 <li>Built with Go 1.27.2, which fixes GO-2026-6599, GO-2026-6600, GO-2026-6603,
 GO-2026-6604, GO-2026-6605, GO-2026-6607, GO-2026-6608 and GO-2026-6610 in

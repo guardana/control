@@ -11,6 +11,25 @@ verify one.
 
 ## [Unreleased]
 
+### Security
+
+- The guides "Connect an existing MCP setup", "Supervise and stop a run" and
+  "Check a security-testing agent" and the example profiles
+  `examples/connect-a-filesystem-server/plane.yaml` and
+  `examples/refund-supervision/plane.yaml` no longer put the collector's
+  credential in `plane.yaml`, giving it to the plane through the environment
+  variable `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION`, set in each terminal
+  that runs `doctor` or `run` (or in the MCP client's `env` block when the
+  client starts the plane). The connect guide now closes the copied plane
+  directory with `chmod 700` before the collector's socket is made in it. An
+  existing copy of either example keeps its `export.headers` block until you
+  remove it; a key the environment sets is refused under `approvals.authority:
+  signed`. Before, `cp -R` left `plane.yaml` readable by every local account
+  (mode `0644` under the usual umask) with the credential in it, and the
+  collector's socket in that directory accepted connections from any account, so
+  another local account could read the credential and send events the collector
+  kept as the plane's evidence.
+
 ## [0.19.1] - 2026-11-27
 
 Upgrading from 0.18 changes requirements across several tools, and more under

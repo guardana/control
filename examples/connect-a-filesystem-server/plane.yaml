@@ -42,8 +42,6 @@ evidence:
 export:
   endpoint: unix:///absolute/path/to/collect.sock
   collector_uid: COLLECTOR_UID_FROM_ID
-  headers:
-    Authorization: Bearer COLLECTOR_CREDENTIAL_FROM_FILE
 
 list:
   shaping: none

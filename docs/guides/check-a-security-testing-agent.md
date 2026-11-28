@@ -101,7 +101,7 @@ guardana-control policy renew --key ../../keys/freshness/signing.key --bundle st
 guardana-control policy state init --kind plane --bundle-id refund-supervision state/floors
 ```
 
-In `plane.yaml`, fill in the bundle and freshness key IDs and public keys. Replace `/absolute/path/to/collect.sock` with the full path to `$WORK/examples/refund-supervision/state/collect.sock`. Run `id -u` as the collector account, and set `COLLECTOR_UID_FROM_ID` to that number. Create the credential and replace `COLLECTOR_CREDENTIAL_FROM_FILE` with its contents.
+In `plane.yaml`, fill in the bundle and freshness key IDs and public keys. Replace `/absolute/path/to/collect.sock` with the full path to `$WORK/examples/refund-supervision/state/collect.sock`. Run `id -u` as the collector account, and set `COLLECTOR_UID_FROM_ID` to that number. Create the credential:
 
 ```sh
 (umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > state/collector.credential)
@@ -134,12 +134,14 @@ guardana-control runs open --project refunds --tenant acme --principal-type serv
 Check the configuration with `doctor` (`experimental`).
 
 ```sh
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat state/collector.credential)"
 guardana-gateway doctor --config plane.yaml
 ```
 
 When every check says `ok`, start the plane in another terminal in the example directory.
 
 ```sh
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat state/collector.credential)"
 guardana-gateway run --config plane.yaml
 ```
 

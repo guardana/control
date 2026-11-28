@@ -38,6 +38,7 @@ From the checkout's root:
 
 ```
 cp -R examples/connect-a-filesystem-server ~/files-plane
+chmod 700 ~/files-plane
 cp examples/starter-packs/approval-for-writes/policy.json ~/files-plane/
 go -C examples/evidence-report build -o ~/files-plane/bin/ .
 cd ~/files-plane
@@ -78,8 +79,7 @@ runs the plane once you sign for real.
 In `plane.yaml`, replace `BUNDLE_KEY_ID_FROM_KEYGEN` and `BUNDLE_PUBLIC_KEY_FROM_KEYGEN`
 with the two lines the first `keygen` printed,
 `FRESHNESS_KEY_ID_FROM_KEYGEN` and `FRESHNESS_PUBLIC_KEY_FROM_KEYGEN` with
-the second's, `COLLECTOR_CREDENTIAL_FROM_FILE` with the content of the
-collector's credential, `/absolute/path/to/collect.sock` with the absolute
+the second's, `/absolute/path/to/collect.sock` with the absolute
 path of `collect.sock` in this directory, `COLLECTOR_UID_FROM_ID` with what
 `id -u` prints, and the server's one argument with the absolute path of the
 directory it may touch. Nothing else needs to change for this server.
@@ -87,6 +87,17 @@ The credential is any 32 to 512 printable bytes with no space:
 
 ```
 (umask 077 && od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > collector.credential)
+```
+
+The plane takes the collector's credential from the environment variable
+`GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION`, because a plane reads
+`plane.yaml` whatever the group and others may read, and the collector takes
+anything sent with the credential as the plane's evidence. Set it in every
+terminal before running `guardana-gateway doctor` or `guardana-gateway run` for
+this plane:
+
+```
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat collector.credential)"
 ```
 
 ### 4. Start a collector
@@ -125,6 +136,7 @@ agent needs, as [run-the-gateway.md](run-the-gateway.md) shows.
 ### 6. Run the plane
 
 ```
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat collector.credential)"
 guardana-gateway run --config plane.yaml
 ```
 
@@ -152,14 +164,21 @@ clients:
 ```
 
 A client that can only start servers as commands starts the plane instead,
-with `listener.kind: stdio` and no `listener.address` in the profile:
+with `listener.kind: stdio` and no `listener.address` in the profile. The client
+must start it with `GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION` in its
+environment; most clients take an `env` object beside `command` and `args`.
+That puts the credential in the client's configuration file, which then must be
+readable by you alone:
 
 ```json
 {
   "mcpServers": {
     "files": {
       "command": "/path/to/guardana-gateway",
-      "args": ["run", "--config", "/home/you/files-plane/plane.yaml"]
+      "args": ["run", "--config", "/home/you/files-plane/plane.yaml"],
+      "env": {
+        "GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION": "Bearer <the content of collector.credential>"
+      }
     }
   }
 }

@@ -156,6 +156,7 @@ start the plane instead (step 7).</li>
 <h3 id="1-copy-the-profile-and-the-policy-and-install-the-server">1. Copy the profile and the policy, and install the server</h3>
 <p>From the checkout's root:</p>
 <pre><code>cp -R examples/connect-a-filesystem-server ~/files-plane
+chmod 700 ~/files-plane
 cp examples/starter-packs/approval-for-writes/policy.json ~/files-plane/
 go -C examples/evidence-report build -o ~/files-plane/bin/ .
 cd ~/files-plane
@@ -188,13 +189,20 @@ runs the plane once you sign for real.</p>
 <p>In <code>plane.yaml</code>, replace <code>BUNDLE_KEY_ID_FROM_KEYGEN</code> and <code>BUNDLE_PUBLIC_KEY_FROM_KEYGEN</code>
 with the two lines the first <code>keygen</code> printed,
 <code>FRESHNESS_KEY_ID_FROM_KEYGEN</code> and <code>FRESHNESS_PUBLIC_KEY_FROM_KEYGEN</code> with
-the second's, <code>COLLECTOR_CREDENTIAL_FROM_FILE</code> with the content of the
-collector's credential, <code>/absolute/path/to/collect.sock</code> with the absolute
+the second's, <code>/absolute/path/to/collect.sock</code> with the absolute
 path of <code>collect.sock</code> in this directory, <code>COLLECTOR_UID_FROM_ID</code> with what
 <code>id -u</code> prints, and the server's one argument with the absolute path of the
 directory it may touch. Nothing else needs to change for this server.
 The credential is any 32 to 512 printable bytes with no space:</p>
 <pre><code>(umask 077 &amp;&amp; od -An -N32 -tx1 /dev/urandom | tr -d &#39; \n&#39; &gt; collector.credential)
+</code></pre>
+<p>The plane takes the collector's credential from the environment variable
+<code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code>, because a plane reads
+<code>plane.yaml</code> whatever the group and others may read, and the collector takes
+anything sent with the credential as the plane's evidence. Set it in every
+terminal before running <code>guardana-gateway doctor</code> or <code>guardana-gateway run</code> for
+this plane:</p>
+<pre><code>export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat collector.credential)&#34;
 </code></pre>
 <h3 id="4-start-a-collector">4. Start a collector</h3>
 <pre><code>guardana-gateway collect --listen &#34;unix://$PWD/collect.sock&#34; --dir trail --tenant local --project files \
@@ -220,7 +228,8 @@ unclassified; outside <code>OBSERVE</code> a call to it is blocked with
 overrides, read the fingerprints <code>doctor</code> prints, and classify each tool the
 agent needs, as <a href="/docs/guides/run-the-gateway">run-the-gateway.md</a> shows.</p>
 <h3 id="6-run-the-plane">6. Run the plane</h3>
-<pre><code>guardana-gateway run --config plane.yaml
+<pre><code>export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION=&#34;Bearer $(cat collector.credential)&#34;
+guardana-gateway run --config plane.yaml
 </code></pre>
 <p>It listens for agents on <code>127.0.0.1:8080</code> and answers <code>/healthz</code> and
 <code>/metrics</code> on <code>127.0.0.1:8081</code>. The statement confirms the policy for
@@ -241,12 +250,19 @@ clients:</p>
 }
 </code></pre>
 <p>A client that can only start servers as commands starts the plane instead,
-with <code>listener.kind: stdio</code> and no <code>listener.address</code> in the profile:</p>
+with <code>listener.kind: stdio</code> and no <code>listener.address</code> in the profile. The client
+must start it with <code>GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION</code> in its
+environment; most clients take an <code>env</code> object beside <code>command</code> and <code>args</code>.
+That puts the credential in the client's configuration file, which then must be
+readable by you alone:</p>
 <pre><code class="language-json">{
   &#34;mcpServers&#34;: {
     &#34;files&#34;: {
       &#34;command&#34;: &#34;/path/to/guardana-gateway&#34;,
-      &#34;args&#34;: [&#34;run&#34;, &#34;--config&#34;, &#34;/home/you/files-plane/plane.yaml&#34;]
+      &#34;args&#34;: [&#34;run&#34;, &#34;--config&#34;, &#34;/home/you/files-plane/plane.yaml&#34;],
+      &#34;env&#34;: {
+        &#34;GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION&#34;: &#34;Bearer &lt;the content of collector.credential&gt;&#34;
+      }
     }
   }
 }
