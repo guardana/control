@@ -271,3 +271,64 @@ func TestTheCapabilityListNamesHowTheAdapterEnforces(t *testing.T) {
 		}
 	}
 }
+
+// TestDoctorRefusesAToolNameTwoUpstreamsList: two upstreams that both list
+// read_order, each classified by its own override, route no call to it in any
+// mode, so doctor passes in neither OBSERVE nor ENFORCE and names the tool.
+// The control is TestDoctorReachesAnUpstreamAndItsFingerprintClassifies, where
+// one upstream lists it.
+func TestDoctorRefusesAToolNameTwoUpstreamsList(t *testing.T) {
+	tr := newTree(t)
+	raw, err := os.ReadFile(filepath.Clean(tr.config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	one := "upstreams:\n  - name: orders\n    endpoint: http://127.0.0.1:1/mcp\n"
+	if !strings.Contains(string(raw), one) {
+		t.Fatalf("the fixture's upstreams block changed:\n%s", raw)
+	}
+	two := "upstreams:\n  - name: orders\n    endpoint: " + upstream(t) + "\n  - name: billing\n    endpoint: " + upstream(t) + "\n"
+	if err := os.WriteFile(filepath.Clean(tr.config), []byte(strings.Replace(string(raw), one, two, 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var first bytes.Buffer
+	_ = doctor(context.Background(), tr.config, &first, &first)
+	overrides := "\noverrides:\n"
+	for _, up := range []string{"orders", "billing"} {
+		overrides += "  - upstream: " + up + "\n    tool: read_order\n    fingerprint: " + fingerprintAt(t, first.String(), up+"/read_order") +
+			"\n    effect: READ\n    resource_type: order\n    resource_from: /id\n"
+	}
+	raw, err = os.ReadFile(filepath.Clean(tr.config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Clean(tr.config), append(raw, overrides...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"OBSERVE", "ENFORCE"} {
+		setEnv(t, "mode", mode)
+		var out bytes.Buffer
+		if status := doctor(context.Background(), tr.config, &out, &out); status == exitOK {
+			t.Errorf("%s: doctor passed with a tool name two upstreams list:\n%s", mode, out.String())
+		}
+		text := out.String()
+		if !strings.Contains(text, "2 tool(s) listed, 2 classified, 0 unclassified; 1 tool name(s) listed by more than one upstream") ||
+			!strings.Contains(text, "read_order is listed by more than one upstream") {
+			t.Errorf("%s: doctor does not name the shared tool:\n%s", mode, text)
+		}
+	}
+}
+
+// fingerprintAt is the fingerprint doctor printed for the unclassified tool
+// named upstream/tool.
+func fingerprintAt(t *testing.T, out, name string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, " "+name+" is unclassified") {
+			fields := strings.Fields(line)
+			return fields[len(fields)-1]
+		}
+	}
+	t.Fatalf("no fingerprint for %s in:\n%s", name, out)
+	return ""
+}

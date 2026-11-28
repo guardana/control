@@ -11,6 +11,15 @@ verify one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `guardana-gateway doctor` now fails its `upstreams` check, in every mode
+  (`OBSERVE` included), when two or more upstreams list the same tool name. It
+  names each such tool (`<name> is listed by more than one upstream, so no
+  call to it can be routed`) and counts them on the check line. Before,
+  `doctor` passed the check while every call to that tool failed; the plane
+  already refused it.
+
 ## [0.19.1] - 2026-11-27
 
 Upgrading from 0.18 changes requirements across several tools, and more under
