@@ -151,21 +151,7 @@ func TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide(t *testing.T) {
 	if !regexp.MustCompile(`(?m)^chmod 700 ~/files-plane$`).Match(guide) {
 		t.Errorf("%s does not close the plane's directory with chmod 700 ~/files-plane", mcpClientGuide)
 	}
-	runs := 0
-	for _, block := range codeBlocks(string(guide)) {
-		set := false
-		for _, line := range block {
-			fields := strings.Fields(line)
-			set = set || exported.MatchString(line)
-			if len(fields) > 1 && fields[0] == brand.Gateway && (fields[1] == "doctor" || fields[1] == "run") {
-				runs++
-				if !set {
-					t.Errorf("%s runs %q in a code block that does not first export %s", mcpClientGuide, line, variable)
-				}
-			}
-		}
-	}
-	if runs < 2 {
+	if runs := exportedRuns(t, string(guide), exported); runs < 2 {
 		t.Errorf("%s runs doctor and the plane %d time(s) in its code blocks, want both", mcpClientGuide, runs)
 	}
 	for _, line := range []string{
@@ -177,6 +163,27 @@ func TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide(t *testing.T) {
 			t.Errorf("%s holds no line matching %s", mcpClientScript, line)
 		}
 	}
+}
+
+// exportedRuns counts the doctor and run lines of the guide's code blocks,
+// reporting each one its block does not precede with the export.
+func exportedRuns(t *testing.T, guide string, exported *regexp.Regexp) int {
+	t.Helper()
+	runs := 0
+	for _, block := range codeBlocks(guide) {
+		set := false
+		for _, line := range block {
+			fields := strings.Fields(line)
+			set = set || exported.MatchString(line)
+			if len(fields) > 1 && fields[0] == brand.Gateway && (fields[1] == "doctor" || fields[1] == "run") {
+				runs++
+				if !set {
+					t.Errorf("%s runs %q in a code block that does not first export the credential", mcpClientGuide, line)
+				}
+			}
+		}
+	}
+	return runs
 }
 
 // codeBlocks is each fenced code block of text, as its trimmed lines with a
