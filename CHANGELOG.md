@@ -11,6 +11,14 @@ verify one.
 
 ## [Unreleased]
 
+### Documentation
+
+- Until 1.0, each release follows a review of the changes since the previous
+  release, by a reviewer who did not write them, and a check of the pages those
+  changes touch. In [RELEASING.md](RELEASING.md), the whole tree is audited
+  once, on the 1.0 release candidate, instead of before every release
+  ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
+
 ## [0.19.1] - 2026-11-27
 
 Upgrading from 0.18 changes requirements across several tools, and more under

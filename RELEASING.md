@@ -2,8 +2,8 @@
 
 `.github/workflows/release.yml` builds, signs and publishes every release;
 no asset is uploaded from a laptop. Until 1.0 a release follows every one to
-three changes, from 1.0 every Monday, an urgent fix out of turn, each after an
-audit of the whole tree
+three changes, each after a review of its changes; from 1.0, every Monday, an
+urgent fix out of turn
 ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
 
 ## Cutting a release
@@ -15,12 +15,13 @@ audit of the whole tree
 2. Update `README.md`, `site/index.html` and affected pages to that
    inventory. Remove delivered roadmap/backlog tasks; keep incomplete ones
    `planned`. Regenerate with `make docs-gen`.
-3. Add the dated `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`.
+3. Add the `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`.
    `scripts/release-notes.sh vX.Y.Z` prints it; the workflow refuses
    missing, undated or empty notes. Set its Python spelling (`1.2.3rc1`) in
    `clients/python/pyproject.toml` and run `uv lock` there.
-4. Gate the release commit cold with `scripts/gate-commit.sh`; the admin
-   pushes it to `main`. Wait for green CI and Security.
+4. Gate the commit cold with `scripts/gate-commit.sh`; on it run
+   `make release-snapshot` and `make check-demo-archive`. The admin pushes it
+   to `main`, awaiting green CI and Security.
 5. Tag the commit and push:
 
    ```sh
@@ -60,7 +61,7 @@ A version is `X.Y.Z`; a suffix like `-rc.1` marks a preview.
 A known-vulnerable symbol, called or not, or an unavailable scan stops release.
 Only `main`'s head, covered by CI, Security and the newest CodeQL analysis,
 may release; the image tag and Publish recheck that, the upload only the
-commit's own runs. Before Publish, failure leaves at most a draft and
+commit's runs. Before Publish, failure leaves at most a draft and
 staging/version image tags: delete them, fix the cause, release the next
 version. Publish names the tag, requires exactly the verified files and
 rereads both; failure then leaves a public release and names recovery steps.
@@ -71,8 +72,8 @@ Run the workflow from `main` with the intended tag. It checks the gate and notes
 builds and scans unsigned `0.0.0-snapshot.<commit>` archives and image, runs
 the image and demo there, and publishes only the Python client, to TestPyPI
 as `X.Y.Z.dev<run>`.
-`make release-snapshot`, `make check-demo-archive` and `make scan-binaries`
-build, scan and run locally with Docker, checking neither gate nor notes.
+`make release-snapshot` and `make scan-binaries` build and scan locally with
+Docker, checking neither gate nor notes.
 
 ## A tag never moves
 

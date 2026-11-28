@@ -59,6 +59,19 @@ gates, on the release path, where a failure costs the most.
   verified at its source before it is acted on, and its fix is an ordinary
   change.
 
+Amended in 0.20: until 1.0, before each release, a reviewer who did not write
+the changes reviews what changed since the previous release (the commits
+between the previous release's tag and the release commit) against the
+invariants, the roadmap and what the pages claim. A second check reads each
+page that range touches against the code. A finding is still verified at its
+source, and its fix is still an ordinary change. A change to an authorization
+path keeps its second, independent review on its own pull request. The whole
+tree is audited once, on the 1.0 release candidate, by a reviewer who wrote
+none of it. Whole-tree audit rounds before 0.19 took most of that release's
+week, and releases to 1.0 come about once a week; reviewing each release's
+range covers what changed, and the candidate audit covers the whole. What
+applies after 1.0 is decided before 1.0.
+
 ## Security / compatibility impact
 
 No product code changes. A commit on `main` no longer carries proof that the
