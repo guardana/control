@@ -153,17 +153,19 @@ operator from removing it, letting another approval run the call.</li>
 </ul>
 <h3 id="changed">Changed</h3>
 <ul>
-<li>An unauthenticated answer makes the batch unjudged. A valid rejection in
-the batch wins. Without one the hold stands, the call is <code>INDETERMINATE</code>,
-and a reconciliation closes it <code>APPROVAL_STATE_UNKNOWN</code>. The inbox counts
-cause <code>misnamed</code>; <code>doctor</code>, <code>/healthz</code> and
-<code>pipeline_answers_refused_total{cause}</code> show <code>batch_unjudged</code>. When another
-account holds the first name, <code>approvals approve|reject --key</code> uses the next
-free label for the same key and decision, from <code>-2</code> through <code>-16</code>. It prints
-<code>&lt;taken name&gt; is held by another account's file (owned by uid N); the answer is filed as &lt;new name&gt; instead</code> on stderr, prints the filed path on stdout
-and exits 0. It refuses if one of those files is this account's own, or if
-all 16 names are taken. Before, unauthenticated answers, including answers from revoked
-keys, were left out and the command refused a taken name.</li>
+<li>Answers failing authentication (including those signed by a key a newer
+roster no longer names) count under cause <code>unauthenticated</code>. A file the
+plane cannot hold to its name (another case, bad label, another approval's
+body) counts <code>misnamed</code> in the inbox, making the batch unjudged
+(<code>/healthz</code> and <code>pipeline_answers_refused_total{cause}</code> show
+<code>batch_unjudged</code>). Either way a valid rejection wins; without one the hold
+stands, the call is <code>INDETERMINATE</code>, and a reconciliation closes it
+<code>APPROVAL_STATE_UNKNOWN</code>. <code>approvals approve|reject --key</code> uses <code>-2</code>
+through <code>-16</code> unless a taken name holds this account's verified answer;
+stderr reports <code>&lt;taken&gt; is held by a file that is not this answer (owned by uid N)</code> and the filed name. Earlier, owning the file alone counted as
+&quot;filed earlier&quot;, so hard-linking an earlier answer under the rejection's
+name blocked it. Before, unauthenticated answers, including answers from
+revoked keys, were left out and the command refused a taken name.</li>
 </ul>
 <h3 id="fixed">Fixed</h3>
 <ul>

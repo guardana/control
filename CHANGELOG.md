@@ -25,18 +25,20 @@ verify one.
 
 ### Changed
 
-- An unauthenticated answer makes the batch unjudged. A valid rejection in
-  the batch wins. Without one the hold stands, the call is `INDETERMINATE`,
-  and a reconciliation closes it `APPROVAL_STATE_UNKNOWN`. The inbox counts
-  cause `misnamed`; `doctor`, `/healthz` and
-  `pipeline_answers_refused_total{cause}` show `batch_unjudged`. When another
-  account holds the first name, `approvals approve|reject --key` uses the next
-  free label for the same key and decision, from `-2` through `-16`. It prints
-  `<taken name> is held by another account's file (owned by uid N); the answer
-  is filed as <new name> instead` on stderr, prints the filed path on stdout
-  and exits 0. It refuses if one of those files is this account's own, or if
-  all 16 names are taken. Before, unauthenticated answers, including answers from revoked
-  keys, were left out and the command refused a taken name.
+- Answers failing authentication (including those signed by a key a newer
+  roster no longer names) count under cause `unauthenticated`. A file the
+  plane cannot hold to its name (another case, bad label, another approval's
+  body) counts `misnamed` in the inbox, making the batch unjudged
+  (`/healthz` and `pipeline_answers_refused_total{cause}` show
+  `batch_unjudged`). Either way a valid rejection wins; without one the hold
+  stands, the call is `INDETERMINATE`, and a reconciliation closes it
+  `APPROVAL_STATE_UNKNOWN`. `approvals approve|reject --key` uses `-2`
+  through `-16` unless a taken name holds this account's verified answer;
+  stderr reports `<taken> is held by a file that is not this answer (owned
+  by uid N)` and the filed name. Earlier, owning the file alone counted as
+  "filed earlier", so hard-linking an earlier answer under the rejection's
+  name blocked it. Before, unauthenticated answers, including answers from
+  revoked keys, were left out and the command refused a taken name.
 
 ### Fixed
 

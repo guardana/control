@@ -366,10 +366,10 @@ answered, and no file there reads as spent or given up. Under `directory` and
 tenant and project, from an inbox the plane's own account owns, refused
 otherwise at start and at every read; any inbox writer (operators' group, no
 grant needed) can hold any held call `INDETERMINATE` with a file named for its
-approval the plane cannot judge, including a revoked operator's earlier answer,
-until a valid rejection, the hold's expiry or the file's removal, and a
-non-ASCII name holds every held call so, but it can never run a call or keep a
-granted operator's valid rejection from winning; the console, which holds no
+approval the plane cannot judge, including a revoked operator's earlier
+answer, a valid rejection notwithstanding, until the hold's expiry or the
+files' removal, and a non-ASCII name holds every held call so, but it can
+never make a call run; the console, which holds no
 operator key, shows a signed hold and the command that signs it and answers
 nothing, and writes no pause under `signed` or into a signed pause file; a `dev` plane runs `signed` with an
 operator key in its own state directory, so its own account approves and pauses;

@@ -193,21 +193,22 @@ hold's approval id, its approver id held to the claim rule.</p>
 <p>Amended in 0.19: the plane refuses an inbox its own account does not own, at
 the start, in doctor and at every read, and prunes no other. That owner could
 unlink any answer, a rejection among them, out of the plane's sight.</p>
-<p>Amended in 0.20: <code>signed</code> reads a name for an approval if the part before
-the first <code>.</code> matches its id ignoring ASCII letter case. It reads names
-with any byte outside ASCII for every approval, since volumes may fold case
-or normalize names. A file so named must have its name spelled exactly and an
+<p>Amended in 0.20: <code>signed</code> reads a name for an approval if the part before the
+first <code>.</code> matches its id ignoring ASCII letter case. It reads names with any
+byte outside ASCII for every approval, since volumes may fold case or
+normalize names. A file so named must have its name spelled exactly and an
 <code>approval-answer/v1alpha1</code> body for that approval. Its label must match the
 body's <code>&lt;key id&gt;-&lt;decision&gt;</code> with an optional suffix <code>-2</code> through <code>-16</code>. Its
 envelope must carry exactly one signature under that key. A file that fails
-these checks or cannot authenticate makes the batch unjudged. A correctly
-named and authenticated answer from an operator without the call's tenant
-and project grant is left out and counted. A valid rejection in the batch
-wins. Without one, the hold stands, the call is <code>INDETERMINATE</code>, and a
-reconciliation closes it <code>APPROVAL_STATE_UNKNOWN</code>. Above 4096 inbox names or 16
-answers for one approval the batch is unavailable even with a rejection. An
-inbox writer can keep any held call <code>INDETERMINATE</code>. Inbox write access alone
-cannot run a call or defeat a valid rejection.</p>
+these checks makes the batch unjudged. An answer that cannot authenticate is
+counted under the cause <code>unauthenticated</code>. A correctly named and authenticated
+answer from an operator without the call's tenant and project grant is left
+out and counted. A valid rejection in the batch wins. Without one, the hold
+stands, the call is <code>INDETERMINATE</code>, and a reconciliation closes it
+<code>APPROVAL_STATE_UNKNOWN</code>. Above 4096 inbox names or 16 answers for one
+approval the batch is unavailable even with a rejection. An inbox writer can
+hold a call <code>INDETERMINATE</code> despite a valid rejection, by truncating the
+batch, but cannot make one run.</p>
 <p><strong><code>approvals.authority: memory | directory | signed</code> replaces
 <code>approvals.provider</code> and has no default.</strong> A configuration without it, or
 with the old key, is refused naming both. <code>directory</code> is what <code>provider: file</code> was. This amends ADR-0066 property 3 for this port: its kind is chosen

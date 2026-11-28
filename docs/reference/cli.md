@@ -74,16 +74,16 @@ The key reaches the command only as a path, and no refusal quotes it. Both
 refuse on a platform without permission bits
 ([ADR-0018](../adr/0018-keys-and-bundles-on-disk.md)).
 
-Flags come first. `--key` signs from the plane's hold record, read through
-the operators' group (`0750` directory, `0640` files), and files
-`<approval id>.<key id>-<decision>.answer` (mode `0644`) without overwriting.
-It warns when run as the plane's account. `--approver-id` is a claim refused
-for signed holds. If another account holds the file, `--key` files under the
-next free label for the same key and decision (`-2` through `-16`), prints
-both names and the owner UID on stderr and the filed path on stdout, and
-exits 0. It refuses if this account owns that file ("is this account's own,
-filed earlier") or all 16 names are taken (naming the first name and its
-owner).
+Flags come first. `--key` signs from the plane's hold record (operators'
+group, `0750` directory, `0640` files) and files
+`<approval id>.<key id>-<decision>.answer` (`0644`) without overwriting.
+It warns when run as the plane's account. Signed holds refuse `--approver-id`.
+If taken, it refuses ("is this account's own, filed earlier") only for this
+account's own answer: one envelope of the answer type, exactly one signature
+verifying under this key, body naming this key, approval and decision.
+Otherwise it files under the next free label (`-2` through `-16`), reports both
+names and owner UID on stderr, the filed path on stdout, and exits 0. With
+all 16 taken, it refuses, naming the first name and its owner.
 
 `approvals list` reads the plane's directory from a signed operator's
 account without writing. For each record it prints the state, both digests

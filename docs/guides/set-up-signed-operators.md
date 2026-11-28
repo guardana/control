@@ -135,10 +135,13 @@ guardana-control approvals approve --key op/signing.key --inbox /var/lib/guardan
 answer counts only from a roster operator granted `operate` for the call's
 tenant and project; `--approver-id` is refused for a signed hold, and the
 command warns when run as the plane's account. The agent's identical retry
-then runs ([approvals](../concepts/approvals-and-the-held-call.md)). If another
-account owns the file at the first name, the command files the answer under
-the next free label for the same key and decision, from `-2` through `-16`.
-Look at the file named on stderr.
+then runs ([approvals](../concepts/approvals-and-the-held-call.md)). If the
+first name holds a file other than this account's verified answer for this
+approval, key and decision, the command files under the next free label, from
+`-2` through `-16`. Stderr gives both names and the taken file's owner UID.
+A file whose name holds a byte outside ASCII holds every waiting call
+`INDETERMINATE`; `/healthz` counts it under `misnamed`, and inbox pruning
+never removes it, so remove it by hand.
 
 ### 5. Pause a tool
 
