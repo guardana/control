@@ -164,6 +164,10 @@ configuration.</p>
 under <code>approvals.authority: signed</code> the plane takes a pause only from a
 version <code>3</code> file an operator signed, above its pause floor, and refuses
 versions <code>1</code> and <code>2</code>.</p>
+<p>Amended by <a href="/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project">ADR-0089</a>:
+the unsigned pause file moves to <code>schema_version</code> <code>5</code> and names <code>tenant</code> and
+<code>project</code>. A plane reads a file of another tenant or project as unknown and
+refuses versions <code>1</code> and <code>2</code>, naming <code>pause init --tenant --project</code>.</p>
 <h2 id="context">Context</h2>
 <p>The registry holds <code>PAUSED</code>, number 24, <code>DENY</code>, and nothing emits it. An
 operator who sees an agent misuse one tool can stop the plane, which stops

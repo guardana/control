@@ -39,6 +39,11 @@ under `approvals.authority: signed` the plane takes a pause only from a
 version `3` file an operator signed, above its pause floor, and refuses
 versions `1` and `2`.
 
+Amended by [ADR-0089](0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md):
+the unsigned pause file moves to `schema_version` `5` and names `tenant` and
+`project`. A plane reads a file of another tenant or project as unknown and
+refuses versions `1` and `2`, naming `pause init --tenant --project`.
+
 ## Context
 
 The registry holds `PAUSED`, number 24, `DENY`, and nothing emits it. An

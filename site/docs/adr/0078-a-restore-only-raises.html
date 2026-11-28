@@ -147,6 +147,10 @@ run.</p>
 <code>backup.json</code> is schema <code>0.2</code>, and under <code>signed</code> names the plane's
 <code>plane_id</code>, which a restore compares beside the tenant and project. A <code>0.1</code>
 manifest names none; a signed restore of one says <code>plane not checked</code>.</p>
+<p>Amended by <a href="/docs/adr/0092-the-observation-and-finding-logs-are-segment-logs-of-one-project">ADR-0092</a>:
+the evidence, observation and finding logs stay outside <code>state backup</code> and
+are copied with <code>guardana-gateway log backup</code> and
+<code>guardana-gateway log restore</code>.</p>
 <h2 id="context">Context</h2>
 <p>A plane's authority state lives on disk: floors that keep an older policy,
 roster or pause from being taken again, runs and what each took in, and a

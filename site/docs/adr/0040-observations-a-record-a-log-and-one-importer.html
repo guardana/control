@@ -151,6 +151,10 @@ which decides that a table of source kinds holds which members and which trust
 each kind may declare, that the descriptor is <code>0.2</code> when it carries an egress
 proxy's mapping and a record <code>0.3</code> when it carries a connection or refusals by
 reason, and that a connection's id is derived from its content.</p>
+<p>Amended by <a href="/docs/adr/0092-the-observation-and-finding-logs-are-segment-logs-of-one-project">ADR-0092</a>:
+observations are written to a segment log bound to one tenant and project and
+exported at format <code>0.2</code>. The single file is still read and exported, never
+written.</p>
 <h2 id="context">Context</h2>
 <p>ADR-0039 fixed what an observation says and left its shape open. The first
 source is an agent runtime's OpenTelemetry traces under the GenAI semantic
