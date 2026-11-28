@@ -15,9 +15,20 @@ verify one.
 
 - Until 1.0, each release follows a review of the changes since the previous
   release, by a reviewer who did not write them, and a check of the pages those
-  changes touch. In [RELEASING.md](RELEASING.md), the whole tree is audited
-  once, on the 1.0 release candidate, instead of before every release
+  changes touch. The whole tree is audited once, on the 1.0 release candidate,
+  instead of before every release
   ([ADR-0052](docs/adr/0052-a-change-is-gated-on-its-pull-request.md)).
+
+### Fixed
+
+- `policy renew --out <file>` judges `--out` again if another renew replaces
+  the file between looking at the path and opening it, as it already did when
+  the file changed at other steps. It replaces an older statement, or keeps a
+  newer one and says that a newer statement for the bundle id is there, which
+  another renew wrote meanwhile. When two runs, each under its own signer floor
+  directory, wrote to the same `--out` at the same moment, one could fail with
+  "the path holds something other than a freshness statement ... it changed
+  while it was judged".
 
 ## [0.19.1] - 2026-11-27
 

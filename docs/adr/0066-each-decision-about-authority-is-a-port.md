@@ -19,6 +19,11 @@ RecordLog meets properties 1, 3 and 6 only once it has a second kind.
 Amended by [ADR-0073](0073-an-approval-counts-only-as-the-plane-judges-it.md): the approval
 authority has no default kind, so property 3's default is not taken for it.
 
+Amended by [ADR-0091](0091-the-record-log-port-moves-to-its-consumers-with-a-read-interface.md):
+RecordLog is declared by its consumers, with a typed kind whose zero value is
+refused. What still falls short is that no configuration key selects the kind
+until a second kind exists.
+
 ## Context
 
 Control is a framework: each part offers a proposed option and can be

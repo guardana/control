@@ -137,6 +137,11 @@ Date: 2026-11-13</p>
 <a href="/docs/adr/0075-a-signed-plane-takes-a-pause-only-from-an-operators-signature">ADR-0075</a>,
 <a href="/docs/adr/0076-a-signed-plane-takes-a-run-only-from-an-operators-signature">ADR-0076</a>
 and <a href="/docs/adr/0077-a-signed-plane-takes-a-stop-list-only-from-operators-signatures">ADR-0077</a>.</p>
+<p>Amended by <a href="/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project">ADR-0089</a>:
+under <code>directory</code> and <code>memory</code> too, a plane serves one tenant and at load
+refuses a <code>listener.principal.tenant_id</code> that differs from <code>tenant_id</code>.
+The plane holds an approval claim, the pause file and the route to its tenant
+and project.</p>
 <h2 id="context">Context</h2>
 <p>Under <code>approvals.authority: signed</code> each operator-signed file a plane takes
 is bound to a tenant, a project and the absolute path it was signed for. A

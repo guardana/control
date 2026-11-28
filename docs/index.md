@@ -240,3 +240,7 @@ Have a tool ask before it acts or a sensor report what happened, hold a client t
 - [ADR-0086: Controlled attempts are counted at the victim, by an executor of their own](adr/0086-controlled-attempts-are-counted-at-the-victim.md): accepted
 - [ADR-0087: A candidate policy is compared through the kernel's own evaluation, and what a case cannot show stays unknown](adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation.md): proposed
 - [ADR-0088: A verdict that compares two events' times is at most suspected](adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected.md): proposed
+- [ADR-0089: Outside signed, every receiver holds its input to the plane's one tenant and project](adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project.md): proposed
+- [ADR-0090: A listener authenticator names the principal a stop and a pause match](adr/0090-a-listener-authenticator-names-the-principal-a-stop-and-a-pause-match.md): proposed
+- [ADR-0091: The record log port moves to its consumers, with a read interface](adr/0091-the-record-log-port-moves-to-its-consumers-with-a-read-interface.md): proposed
+- [ADR-0092: The observation and finding logs are segment logs of one project](adr/0092-the-observation-and-finding-logs-are-segment-logs-of-one-project.md): proposed

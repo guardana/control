@@ -147,6 +147,10 @@ Amended by <a href="/docs/adr/0072-the-collector-keeps-bounded-segments-of-one-p
 RecordLog meets properties 1, 3 and 6 only once it has a second kind.
 Amended by <a href="/docs/adr/0073-an-approval-counts-only-as-the-plane-judges-it">ADR-0073</a>: the approval
 authority has no default kind, so property 3's default is not taken for it.</p>
+<p>Amended by <a href="/docs/adr/0091-the-record-log-port-moves-to-its-consumers-with-a-read-interface">ADR-0091</a>:
+RecordLog is declared by its consumers, with a typed kind whose zero value is
+refused. What still falls short is that no configuration key selects the kind
+until a second kind exists.</p>
 <h2 id="context">Context</h2>
 <p>Control is a framework: each part offers a proposed option and can be
 extended or replaced. Today most decisions about authority are fixed in

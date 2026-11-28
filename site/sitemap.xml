@@ -91,6 +91,10 @@
   <url><loc>https://control.guardana.dev/docs/adr/0086-controlled-attempts-are-counted-at-the-victim</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0087-a-candidate-policy-is-compared-through-the-kernels-own-evaluation</loc></url>
   <url><loc>https://control.guardana.dev/docs/adr/0088-a-verdict-that-compares-two-events-times-is-at-most-suspected</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0089-outside-signed-every-receiver-holds-its-input-to-the-planes-one-tenant-and-project</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0090-a-listener-authenticator-names-the-principal-a-stop-and-a-pause-match</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0091-the-record-log-port-moves-to-its-consumers-with-a-read-interface</loc></url>
+  <url><loc>https://control.guardana.dev/docs/adr/0092-the-observation-and-finding-logs-are-segment-logs-of-one-project</loc></url>
   <url><loc>https://control.guardana.dev/docs/backlog</loc></url>
   <url><loc>https://control.guardana.dev/docs/changelog</loc></url>
   <url><loc>https://control.guardana.dev/docs/concepts/agent-tool-call-controls</loc></url>
