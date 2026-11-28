@@ -132,9 +132,10 @@ func TestTheMCPClientCheckRunsEveryCommandOfTheGuide(t *testing.T) {
 }
 
 // TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide: the guide closes the
-// plane's directory and gives the collector's credential through the
-// environment, and the check does both, so neither the guide nor the check can
-// drop one without failing here.
+// plane's directory and exports the collector's credential in every code block
+// that runs doctor or the plane, and the check closes the directory, verifies
+// its mode and exports the credential, so neither can drop one without failing
+// here.
 func TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide(t *testing.T) {
 	root := repoRoot(t)
 	guide, err := os.ReadFile(filepath.Join(root, mcpClientGuide)) //nolint:gosec // G304: a path this repository names
@@ -146,15 +147,57 @@ func TestTheMCPClientCheckKeepsTheCredentialStepsOfTheGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	variable := regexp.QuoteMeta(brand.Env("EXPORT_HEADERS_AUTHORIZATION"))
-	for _, step := range []struct{ guide, script string }{
-		{`(?m)^chmod 700 ~/files-plane$`, `(?m)^chmod 700 "\$\{work\}/plane"$`},
-		{`(?m)^export ` + variable + `="Bearer \$\(cat collector\.credential\)"$`, `(?m)^export ` + variable + `$`},
-	} {
-		if !regexp.MustCompile(step.guide).Match(guide) {
-			t.Errorf("%s holds no line matching %s", mcpClientGuide, step.guide)
-		}
-		if !regexp.MustCompile(step.script).Match(script) {
-			t.Errorf("%s holds no line matching %s", mcpClientScript, step.script)
+	exported := regexp.MustCompile(`^export ` + variable + `="Bearer \$\(cat collector\.credential\)"$`)
+	if !regexp.MustCompile(`(?m)^chmod 700 ~/files-plane$`).Match(guide) {
+		t.Errorf("%s does not close the plane's directory with chmod 700 ~/files-plane", mcpClientGuide)
+	}
+	runs := 0
+	for _, block := range codeBlocks(string(guide)) {
+		set := false
+		for _, line := range block {
+			fields := strings.Fields(line)
+			set = set || exported.MatchString(line)
+			if len(fields) > 1 && fields[0] == brand.Gateway && (fields[1] == "doctor" || fields[1] == "run") {
+				runs++
+				if !set {
+					t.Errorf("%s runs %q in a code block that does not first export %s", mcpClientGuide, line, variable)
+				}
+			}
 		}
 	}
+	if runs < 2 {
+		t.Errorf("%s runs doctor and the plane %d time(s) in its code blocks, want both", mcpClientGuide, runs)
+	}
+	for _, line := range []string{
+		`(?m)^chmod 700 "\$\{work\}/plane"$`,
+		`(?m)^\[\[ -n "\$\(find \. -maxdepth 0 -perm 700\)" \]\] \|\| die `,
+		`(?m)^export ` + variable + `$`,
+	} {
+		if !regexp.MustCompile(line).Match(script) {
+			t.Errorf("%s holds no line matching %s", mcpClientScript, line)
+		}
+	}
+}
+
+// codeBlocks is each fenced code block of text, as its trimmed lines with a
+// leading "$ " prompt removed.
+func codeBlocks(text string) [][]string {
+	var out [][]string
+	var cur []string
+	fenced := false
+	for _, line := range joinedLines(text) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if fenced {
+				out = append(out, cur)
+				cur = nil
+			}
+			fenced = !fenced
+			continue
+		}
+		if fenced {
+			cur = append(cur, strings.TrimPrefix(trimmed, "$ "))
+		}
+	}
+	return out
 }

@@ -116,6 +116,7 @@ the collector's page.
 ### 5. Check the classification
 
 ```
+export GUARDANA_CONTROL_EXPORT_HEADERS_AUTHORIZATION="Bearer $(cat collector.credential)"
 guardana-gateway doctor --config plane.yaml
 ```
 

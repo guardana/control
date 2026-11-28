@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -152,8 +153,8 @@ func (tr tree) sign(t *testing.T, collector string) {
 		}
 		config = strings.Replace(config, old, new, 1)
 	}
-	if strings.Contains(strings.ToLower(config), "authorization") {
-		t.Fatal("plane.yaml names an Authorization header; the credential belongs in the environment")
+	if strings.Contains(strings.ToLower(config), "authorization") || regexp.MustCompile(`(?mi)^\s*headers\s*:`).MatchString(config) {
+		t.Fatal("plane.yaml names an export header; the credential belongs in the environment")
 	}
 	writeFile(t, tr.path("plane.yaml"), config)
 }
