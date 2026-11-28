@@ -40,6 +40,15 @@ verify one.
 
 ### Fixed
 
+- `guardana-gateway doctor` now fails its `upstreams` check, in every mode
+  (`OBSERVE` included), when a tool name is listed more than once, within or
+  across upstreams. It names each (`<name> is listed more than once, so a call
+  to it is unclassified`) and counts them on the check line (`N tool name(s)
+  listed more than once`). Names from withheld definitions print as `<withheld
+  name>`, here and for unclassified tools, since they may hold the scan's
+  configured value. Before, `doctor` passed the check while the plane treated
+  calls to that tool as unclassified.
+
 - `policy renew --out <file>` judges `--out` again if another renew replaces
   the file between looking at the path and opening it, as it already did when
   the file changed at other steps. It replaces an older statement, or keeps a
